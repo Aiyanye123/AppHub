@@ -66,8 +66,6 @@ dotnet run --project src/AppHub/AppHub.csproj -- --autostart=true --log-path="C:
 |       `-- app.xaml mainwindow.xaml
 |-- tests/
 |   `-- AppHub.Tests/
-|-- 设计文档.md
-`-- 架构文档.md
 ```
 
 ## 说明
