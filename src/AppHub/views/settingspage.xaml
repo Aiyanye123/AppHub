@@ -1,0 +1,277 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<UserControl x:Class="AppHub.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:viewModels="clr-namespace:AppHub.ViewModels" xmlns:views="clr-namespace:AppHub.Views" xmlns:models="clr-namespace:AppHub.Models">
+  <FrameworkElement.DataContext>
+    <viewModels:SettingsViewModel />
+  </FrameworkElement.DataContext>
+  <UserControl.Resources>
+    <Style x:Key="SettingsComboBoxItem" TargetType="{x:Type ComboBoxItem}">
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+            <Border Name="ItemBorder" Margin="6,2" Padding="{TemplateBinding Padding}" Background="#00FFFFFF" CornerRadius="6">
+              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource HoverBgBrush}" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource HoverBgBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="SettingsComboBox" TargetType="{x:Type ComboBox}">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="12,0,8,0" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="MaxDropDownHeight" Value="280" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsComboBoxItem}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ComboBox}">
+            <Grid SnapsToDevicePixels="True">
+              <Border Name="MainBorder" Height="{TemplateBinding Height}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="24" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+                  <Path Grid.Column="1" Margin="0,0,10,0" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0" Stroke="{DynamicResource SubtleTextBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                </Grid>
+              </Border>
+              <ToggleButton Name="DropDownToggle" Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press" Background="Transparent" BorderThickness="0">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Border Background="Transparent" />
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <Popup Name="Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                <Border Name="DropDownBorder" Margin="0,6,0,0" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1.5" CornerRadius="10">
+                  <Border.Effect>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.08" Direction="270" />
+                  </Border.Effect>
+                  <ScrollViewer CanContentScroll="True">
+                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource SubtleTextBrush}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsDropDownOpen" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource DisabledBorderBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Grid Background="{DynamicResource PageRootBgBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="32,28,32,32" HorizontalAlignment="Stretch">
+        <TextBlock Text="设置" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" />
+        <TextBlock Text="管理开机自启、行为参数与日志路径" FontSize="14" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,6,0,28" />
+        <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" Margin="0,0,0,16" HorizontalAlignment="Stretch">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+              <TextBlock Text="⚡" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Text="常规设置" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" />
+            </StackPanel>
+            <CheckBox Content="开机自启动" IsChecked="{Binding AutoStart}" />
+            <TextBlock Text="启用后，AppHub 将在系统启动时自动运行" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="30,0,0,12" />
+            <CheckBox Content="窗口始终置顶" IsChecked="{Binding AlwaysOnTop}" />
+            <TextBlock Text="保持主窗口始终显示在其他窗口上方" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="30,0,0,12" />
+            <CheckBox Content="允许强制结束进程" IsChecked="{Binding AllowForceKill}" />
+            <TextBlock Text="当应用无响应时，允许强制终止进程" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="30,0,0,0" />
+          </StackPanel>
+        </Border>
+        <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" Margin="0,0,0,16" HorizontalAlignment="Stretch">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+              <TextBlock Text="🎛️" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Text="行为设置" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" />
+            </StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="启动行为" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <ComboBox Grid.Row="0" Grid.Column="1" Width="260" HorizontalAlignment="Left" Style="{StaticResource SettingsComboBox}" SelectedValuePath="Tag" SelectedValue="{Binding LaunchBehavior, Mode=TwoWay}">
+                <ComboBoxItem Content="总是新开实例" Tag="{x:Static models:LaunchBehavior.NewInstance}" />
+                <ComboBoxItem Content="优先切换到已运行窗口" Tag="{x:Static models:LaunchBehavior.FocusExisting}" />
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,16,0,0" Text="刷新间隔" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,16,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Slider Width="280" Minimum="1000" Maximum="60000" TickFrequency="1000" IsSnapToTickEnabled="True" Value="{Binding RefreshIntervalMs, Mode=TwoWay}" />
+                  <TextBlock Width="90" Margin="12,0,0,0" VerticalAlignment="Center" TextAlignment="Right" Foreground="{DynamicResource SubtleTextBrush}" Text="{Binding RefreshIntervalMs, StringFormat={}{0:F0} ms}" />
+                </StackPanel>
+                <TextBlock Text="范围：1000 - 60000 ms" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,6,0,0" />
+              </StackPanel>
+              <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,16,0,0" Text="关闭等待" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Slider Width="280" Minimum="200" Maximum="120000" TickFrequency="200" IsSnapToTickEnabled="True" Value="{Binding CloseGracePeriodMs, Mode=TwoWay}" />
+                  <TextBlock Width="90" Margin="12,0,0,0" VerticalAlignment="Center" TextAlignment="Right" Foreground="{DynamicResource SubtleTextBrush}" Text="{Binding CloseGracePeriodMs, StringFormat={}{0:F0} ms}" />
+                </StackPanel>
+                <TextBlock Text="范围：200 - 120000 ms" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,6,0,0" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+        <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" Margin="0,0,0,16" HorizontalAlignment="Stretch">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+              <TextBlock Text="🖼️" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Text="背景设置" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" />
+            </StackPanel>
+            <TextBlock Text="亮色模式背景" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <TextBox Text="{Binding LightBackgroundImagePath, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" />
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+              <Button Content="选择亮色图片" Style="{StaticResource SuccessButton}" Click="OnBrowseLightBackgroundImage" />
+              <Button Margin="10,0,0,0" Content="重置亮色背景" Style="{StaticResource SecondaryButton}" Click="OnResetLightBackgroundImage" />
+            </StackPanel>
+            <Grid Margin="0,16,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="亮色背景方案" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <ComboBox Grid.Row="0" Grid.Column="1" Width="260" HorizontalAlignment="Left" Style="{StaticResource SettingsComboBox}" SelectedValuePath="Tag" SelectedValue="{Binding LightBackgroundStyle, Mode=TwoWay}">
+                <ComboBoxItem Content="仅背景图" Tag="{x:Static models:BackgroundStyle.ImageOnly}" />
+                <ComboBoxItem Content="玻璃磨砂" Tag="{x:Static models:BackgroundStyle.FrostedGlass}" />
+                <ComboBoxItem Content="暗化聚焦" Tag="{x:Static models:BackgroundStyle.Dimmed}" />
+                <ComboBoxItem Content="关闭背景效果" Tag="{x:Static models:BackgroundStyle.None}" />
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,16,0,0" Text="亮色效果强度" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,16,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Slider Width="280" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding LightBackgroundEffectStrength, Mode=TwoWay}" IsEnabled="{Binding IsLightEffectStrengthEnabled}" />
+                  <TextBlock Width="90" Margin="12,0,0,0" VerticalAlignment="Center" TextAlignment="Right" Foreground="{DynamicResource SubtleTextBrush}" Text="{Binding LightBackgroundEffectStrength, StringFormat={}{0:F0}%}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                  <TextBlock Text="拖动滑杆可调节亮色方案强度" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                  <Button Margin="12,0,0,0" Content="重置亮色强度" Style="{StaticResource SecondaryButton}" Padding="12,6" Click="OnResetLightBackgroundStrength" IsEnabled="{Binding IsLightEffectStrengthEnabled}" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+            <Separator Margin="0,18,0,18" />
+            <TextBlock Text="暗色模式背景" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <TextBox Text="{Binding DarkBackgroundImagePath, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" />
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+              <Button Content="选择暗色图片" Style="{StaticResource SuccessButton}" Click="OnBrowseDarkBackgroundImage" />
+              <Button Margin="10,0,0,0" Content="重置暗色背景" Style="{StaticResource SecondaryButton}" Click="OnResetDarkBackgroundImage" />
+            </StackPanel>
+            <Grid Margin="0,16,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="暗色背景方案" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <ComboBox Grid.Row="0" Grid.Column="1" Width="260" HorizontalAlignment="Left" Style="{StaticResource SettingsComboBox}" SelectedValuePath="Tag" SelectedValue="{Binding DarkBackgroundStyle, Mode=TwoWay}">
+                <ComboBoxItem Content="仅背景图" Tag="{x:Static models:BackgroundStyle.ImageOnly}" />
+                <ComboBoxItem Content="玻璃磨砂" Tag="{x:Static models:BackgroundStyle.FrostedGlass}" />
+                <ComboBoxItem Content="暗化聚焦" Tag="{x:Static models:BackgroundStyle.Dimmed}" />
+                <ComboBoxItem Content="关闭背景效果" Tag="{x:Static models:BackgroundStyle.None}" />
+              </ComboBox>
+              <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,16,0,0" Text="暗色效果强度" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,16,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Slider Width="280" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding DarkBackgroundEffectStrength, Mode=TwoWay}" IsEnabled="{Binding IsDarkEffectStrengthEnabled}" />
+                  <TextBlock Width="90" Margin="12,0,0,0" VerticalAlignment="Center" TextAlignment="Right" Foreground="{DynamicResource SubtleTextBrush}" Text="{Binding DarkBackgroundEffectStrength, StringFormat={}{0:F0}%}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                  <TextBlock Text="拖动滑杆可调节暗色方案强度" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                  <Button Margin="12,0,0,0" Content="重置暗色强度" Style="{StaticResource SecondaryButton}" Padding="12,6" Click="OnResetDarkBackgroundStrength" IsEnabled="{Binding IsDarkEffectStrengthEnabled}" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+            <Grid Margin="0,14,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="界面透明度" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Column="1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <Slider Width="280" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding PanelOpacity, Mode=TwoWay}" />
+                  <TextBlock Width="90" Margin="12,0,0,0" VerticalAlignment="Center" TextAlignment="Right" Foreground="{DynamicResource SubtleTextBrush}" Text="{Binding PanelOpacity, StringFormat={}{0:F0}%}" />
+                </StackPanel>
+                <TextBlock Text="统一作用于左侧栏与程序区块" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,6,0,0" />
+                <Button Margin="0,8,0,0" Content="重置透明度" Style="{StaticResource SecondaryButton}" Padding="12,6" HorizontalAlignment="Left" Click="OnResetPanelOpacity" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+        <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" HorizontalAlignment="Stretch">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+              <TextBlock Text="📁" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Text="日志设置" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" />
+            </StackPanel>
+            <TextBlock Text="日志存储目录" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,8" />
+            <TextBox Text="{Binding LogDirectory, UpdateSourceTrigger=PropertyChanged}" />
+            <Grid Margin="0,16,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0" Text="日志最大占用" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBox Width="120" Text="{Binding LogMaxSizeMb, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Text="MB" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="{DynamicResource SubtleTextBrush}" />
+              </StackPanel>
+            </Grid>
+            <TextBlock Text="0 表示不限制，超出后自动删除今日日志文件" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="30,6,0,0" />
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+              <Button Content="选择目录" Click="OnBrowseLogDirectory" />
+              <Button Margin="10,0,0,0" Content="打开日志" Style="{StaticResource SecondaryButton}" Click="OnOpenLogs" />
+              <Button Margin="10,0,0,0" Content="删除所有日志" Style="{StaticResource SecondaryButton}" Click="OnDeleteAllLogs" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

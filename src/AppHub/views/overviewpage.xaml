@@ -1,0 +1,222 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<UserControl x:Class="AppHub.Views.OverviewView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:AppHub.Controls" xmlns:viewModels="clr-namespace:AppHub.ViewModels" xmlns:views="clr-namespace:AppHub.Views" Loaded="OnLoaded" Unloaded="OnUnloaded">
+  <FrameworkElement.DataContext>
+    <viewModels:OverviewViewModel />
+  </FrameworkElement.DataContext>
+  <UserControl.Resources>
+    <Style x:Key="GroupFilterComboBoxItem" TargetType="{x:Type ComboBoxItem}">
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+            <Border Name="ItemBorder" Margin="6,2" Padding="{TemplateBinding Padding}" Background="#00FFFFFF" CornerRadius="6">
+              <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource HoverBgBrush}" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource HoverBgBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="GroupFilterComboBox" TargetType="{x:Type ComboBox}">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="12,0,8,0" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="FontFamily" Value="{DynamicResource AppFont}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="MaxDropDownHeight" Value="280" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource GroupFilterComboBoxItem}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type ComboBox}">
+            <Grid SnapsToDevicePixels="True">
+              <Border Name="MainBorder" Height="{TemplateBinding Height}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="24" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+                  <Path Grid.Column="1" Margin="0,0,10,0" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0" Stroke="{DynamicResource SubtleTextBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                </Grid>
+              </Border>
+              <ToggleButton Name="DropDownToggle" Focusable="False" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press" Background="Transparent" BorderThickness="0">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Border Background="Transparent" />
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <Popup Name="Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                <Border Name="DropDownBorder" Margin="0,6,0,0" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1.5" CornerRadius="10">
+                  <Border.Effect>
+                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.08" Direction="270" />
+                  </Border.Effect>
+                  <ScrollViewer CanContentScroll="True">
+                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource SubtleTextBrush}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsDropDownOpen" Value="True">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="MainBorder" Property="BorderBrush" Value="{DynamicResource DisabledBorderBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Grid Background="{DynamicResource PageRootBgBrush}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Grid Grid.RowSpan="3" IsHitTestVisible="False">
+      <Ellipse Width="420" Height="420" Fill="{DynamicResource AmbientGlowBrush}" Opacity="0.28" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-190,-180,0,0" />
+      <Ellipse Width="360" Height="360" Fill="{DynamicResource AmbientGlowBrush}" Opacity="0.16" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-210,-150,0" />
+    </Grid>
+    <StackPanel Grid.Row="0" Margin="32,28,32,0">
+      <TextBlock Text="应用总览" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" />
+      <TextBlock Text="管理和启动您的常用应用程序" FontSize="14" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,6,0,0" />
+    </StackPanel>
+    <Border Grid.Row="1" Margin="32,20,32,0" Padding="16" Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+      <WrapPanel VerticalAlignment="Center">
+        <Grid Width="340" MinWidth="220" MaxWidth="420" Margin="0,0,12,10">
+          <TextBox Name="SearchBox" Padding="40,10,12,10" Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" />
+          <TextBlock Text="🔍" FontSize="14" IsHitTestVisible="False" VerticalAlignment="Center" Margin="14,0,0,0" Foreground="{DynamicResource SubtleTextBrush}" />
+          <TextBlock Text="搜索应用..." IsHitTestVisible="False" VerticalAlignment="Center" Margin="42,0,0,0" Foreground="{DynamicResource SubtleTextBrush}">
+            <FrameworkElement.Style>
+              <Style TargetType="{x:Type TextBlock}">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Value="" Binding="{Binding Text, ElementName=SearchBox}">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </FrameworkElement.Style>
+          </TextBlock>
+        </Grid>
+        <TextBlock Text="分组" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="0,0,8,10" />
+        <ComboBox Width="168" MinWidth="120" MaxWidth="220" Margin="0,0,16,10" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding GroupOptions}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" />
+        <TextBlock Text="排序" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="0,0,8,10" />
+        <ComboBox Width="112" Margin="0,0,8,10" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
+        <ComboBox Width="88" Margin="0,0,16,10" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortDirectionOptions}" SelectedItem="{Binding SelectedSortDirection, Mode=TwoWay}" Visibility="{Binding IsSortDirectionVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        <Button Margin="0,0,10,10" Content="添加应用" Height="36" MinWidth="120" Padding="20,8" Click="OnAddClick" />
+        <Button Margin="0,0,10,10" Content="刷新状态" Style="{StaticResource SuccessButton}" Height="36" MinWidth="120" Padding="20,8" Command="{Binding RefreshCommand}" />
+        <Button Margin="0,0,0,10" Style="{StaticResource SecondaryButton}" Height="36" MinWidth="120" Padding="20,8" Content="{Binding ThemeToggleText}" Command="{Binding ToggleThemeCommand}" />
+      </WrapPanel>
+    </Border>
+    <ListBox Grid.Row="2" Margin="32,20,32,24" AllowDrop="True" Background="#00FFFFFF" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" ItemsSource="{Binding CurrentView}" PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown" PreviewMouseMove="OnPreviewMouseMove" Drop="OnDrop">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <VirtualizingStackPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemContainerStyle>
+        <Style TargetType="{x:Type ListBoxItem}">
+          <Setter Property="Padding" Value="0" />
+          <Setter Property="Margin" Value="0,0,0,12" />
+          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+          <Setter Property="Background" Value="#00FFFFFF" />
+          <Setter Property="BorderThickness" Value="0" />
+          <Setter Property="Focusable" Value="False" />
+          <Setter Property="UIElement.AllowDrop" Value="True" />
+          <Setter Property="FrameworkElement.Tag" Value="" />
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                <Grid>
+                  <Border Name="DragSurface" Background="{TemplateBinding Control.Background}" CornerRadius="10" Opacity="1" BorderBrush="Transparent" BorderThickness="0" RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                      <TransformGroup>
+                        <ScaleTransform ScaleX="1" ScaleY="1" />
+                        <TranslateTransform X="0" Y="0" />
+                      </TransformGroup>
+                    </Border.RenderTransform>
+                    <ContentPresenter Margin="{TemplateBinding Control.Padding}" HorizontalAlignment="{TemplateBinding Control.HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding Control.VerticalContentAlignment}" />
+                  </Border>
+                  <Rectangle Name="InsertLineTop" Height="2.5" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="10,0,10,0" Visibility="Collapsed" />
+                  <Rectangle Name="InsertLineBottom" Height="2.5" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Margin="10,0,10,0" Visibility="Collapsed" />
+                </Grid>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="FrameworkElement.Tag" Value="Top">
+                    <Setter TargetName="InsertLineTop" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="DragSurface" Property="Background" Value="#1422C55E" />
+                  </Trigger>
+                  <Trigger Property="FrameworkElement.Tag" Value="Bottom">
+                    <Setter TargetName="InsertLineBottom" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="DragSurface" Property="Background" Value="#1422C55E" />
+                  </Trigger>
+                  <Trigger Property="FrameworkElement.Tag" Value="Dragging">
+                    <Setter TargetName="DragSurface" Property="Opacity" Value="0.78" />
+                    <Setter TargetName="DragSurface" Property="Background" Value="#0F22C55E" />
+                    <Setter TargetName="DragSurface" Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="DragSurface" Property="BorderThickness" Value="1.2" />
+                    <Setter TargetName="DragSurface" Property="Effect">
+                      <Setter.Value>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.2" Direction="270" />
+                      </Setter.Value>
+                    </Setter>
+                    <Setter TargetName="DragSurface" Property="RenderTransform">
+                      <Setter.Value>
+                        <TransformGroup>
+                          <ScaleTransform ScaleX="0.985" ScaleY="0.985" />
+                          <TranslateTransform X="0" Y="-2" />
+                        </TransformGroup>
+                      </Setter.Value>
+                    </Setter>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+          <EventSetter Event="DragEnter" Handler="OnItemDragEnter" />
+          <EventSetter Event="DragOver" Handler="OnItemDragOver" />
+          <EventSetter Event="DragLeave" Handler="OnItemDragLeave" />
+          <EventSetter Event="Drop" Handler="OnItemDrop" />
+        </Style>
+      </ItemsControl.ItemContainerStyle>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type viewModels:AppItemViewModel}">
+          <controls:AppCard />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ListBox>
+    <Border Grid.Row="2" Margin="32,20,32,24" Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="📦" FontSize="48" HorizontalAlignment="Center" />
+        <TextBlock Text="暂无应用" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" Margin="0,16,0,8" />
+        <TextBlock Text="点击上方&quot;添加应用&quot;按钮开始添加" Foreground="{DynamicResource SubtleTextBrush}" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

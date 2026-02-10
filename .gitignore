@@ -1,0 +1,28 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+
+# Test artifacts
+TestResults/
+*.trx
+coverage/
+*.coverage
+*.coveragexml
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+
+# WPF generated
+*.baml
+
+# Local recovery data
+recovered/
