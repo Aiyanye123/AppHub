@@ -130,12 +130,13 @@
         <TextBlock Text="排序" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="0,0,8,10" />
         <ComboBox Width="112" Margin="0,0,8,10" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
         <ComboBox Width="88" Margin="0,0,16,10" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortDirectionOptions}" SelectedItem="{Binding SelectedSortDirection, Mode=TwoWay}" Visibility="{Binding IsSortDirectionVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
-        <Button Margin="0,0,10,10" Content="添加应用" Height="36" MinWidth="120" Padding="20,8" Click="OnAddClick" />
-        <Button Margin="0,0,10,10" Content="刷新状态" Style="{StaticResource SuccessButton}" Height="36" MinWidth="120" Padding="20,8" Command="{Binding RefreshCommand}" />
-        <Button Margin="0,0,0,10" Style="{StaticResource SecondaryButton}" Height="36" MinWidth="120" Padding="20,8" Content="{Binding ThemeToggleText}" Command="{Binding ToggleThemeCommand}" />
-      </WrapPanel>
-    </Border>
-    <ListBox Grid.Row="2" Margin="32,20,32,24" AllowDrop="True" Background="#00FFFFFF" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" ItemsSource="{Binding CurrentView}" PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown" PreviewMouseMove="OnPreviewMouseMove" Drop="OnDrop">
+	        <Button Margin="0,0,10,10" Content="添加应用" Height="36" MinWidth="120" Padding="20,8" Click="OnAddClick" />
+	        <Button Margin="0,0,10,10" Content="添加文件夹" Height="36" MinWidth="120" Padding="20,8" Click="OnAddFolderClick" />
+	        <Button Margin="0,0,10,10" Content="刷新状态" Style="{StaticResource SuccessButton}" Height="36" MinWidth="120" Padding="20,8" Command="{Binding RefreshCommand}" />
+	        <Button Margin="0,0,0,10" Style="{StaticResource SecondaryButton}" Height="36" MinWidth="120" Padding="20,8" Content="{Binding ThemeToggleText}" Command="{Binding ToggleThemeCommand}" />
+	      </WrapPanel>
+	    </Border>
+	    <ListBox Grid.Row="2" Margin="32,20,32,24" AllowDrop="True" Background="#00FFFFFF" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel" ItemsSource="{Binding CurrentView}" PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown" PreviewMouseMove="OnPreviewMouseMove" DragEnter="OnListDragEnter" DragOver="OnListDragOver" Drop="OnDrop">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
           <VirtualizingStackPanel />
@@ -214,9 +215,9 @@
     <Border Grid.Row="2" Margin="32,20,32,24" Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Visibility="{Binding IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="📦" FontSize="48" HorizontalAlignment="Center" />
-        <TextBlock Text="暂无应用" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" Margin="0,16,0,8" />
-        <TextBlock Text="点击上方&quot;添加应用&quot;按钮开始添加" Foreground="{DynamicResource SubtleTextBrush}" HorizontalAlignment="Center" />
-      </StackPanel>
-    </Border>
+	        <TextBlock Text="暂无应用" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" Margin="0,16,0,8" />
+	        <TextBlock Text="点击上方按钮，或直接拖入 .exe/.lnk/文件夹" Foreground="{DynamicResource SubtleTextBrush}" HorizontalAlignment="Center" />
+	      </StackPanel>
+	    </Border>
   </Grid>
 </UserControl>

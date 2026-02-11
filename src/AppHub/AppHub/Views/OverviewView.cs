@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +10,8 @@ using AppHub.Models;
 using AppHub.ViewModels;
 using AppHub.Views.Dialogs;
 using Microsoft.Win32;
+using FolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
+using DialogResult = System.Windows.Forms.DialogResult;
 
 namespace AppHub.Views;
 
@@ -48,27 +52,31 @@ public partial class OverviewView : UserControl
 	{
 		OpenFileDialog dialog = new OpenFileDialog
 		{
-			Filter = "Applications (*.exe;*.lnk)|*.exe;*.lnk",
+			Filter = "应用程序 (*.exe;*.lnk)|*.exe;*.lnk",
 			Multiselect = false
 		};
 		if (dialog.ShowDialog() == true)
 		{
-			ApplicationItem item = AppServices.Catalog.AddApp(dialog.FileName);
-			EditAppDialog editDialog = new EditAppDialog(item)
+			AddItemsWithEdit(new[]
 			{
-				Owner = Window.GetWindow((DependencyObject)(object)this)
-			};
-			if (editDialog.ShowDialog() != true)
+				dialog.FileName
+			});
+		}
+	}
+
+	private void OnAddFolderClick(object sender, RoutedEventArgs e)
+	{
+		using FolderBrowserDialog dialog = new FolderBrowserDialog
+		{
+			Description = "选择要添加的文件夹",
+			UseDescriptionForTitle = true
+		};
+		if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+		{
+			AddItemsWithEdit(new[]
 			{
-				AppServices.Catalog.RemoveApp(item.Id);
-				ViewModel.LoadApps();
-			}
-			else
-			{
-				AppServices.Catalog.UpdateApp(editDialog.EditedItem);
-				ViewModel.LoadApps();
-			}
-			AppServices.StatusScheduler.RequestImmediateRefresh();
+				dialog.SelectedPath
+			});
 		}
 	}
 
@@ -125,6 +133,11 @@ public partial class OverviewView : UserControl
 
 	private void OnDrop(object sender, DragEventArgs e)
 	{
+		if (TryHandleExternalDrop(e))
+		{
+			ClearDragVisualState();
+			return;
+		}
 		if (sender is not ListBox listBox)
 		{
 			ClearDragVisualState();
@@ -132,6 +145,16 @@ public partial class OverviewView : UserControl
 		}
 		AppItemViewModel? target = GetItemFromPoint(listBox, e.GetPosition(listBox));
 		CommitDrop(listBox, target, e);
+	}
+
+	private void OnListDragEnter(object sender, DragEventArgs e)
+	{
+		HandleListDragHint(e);
+	}
+
+	private void OnListDragOver(object sender, DragEventArgs e)
+	{
+		HandleListDragHint(e);
 	}
 
 	private void OnItemDragEnter(object sender, DragEventArgs e)
@@ -146,6 +169,12 @@ public partial class OverviewView : UserControl
 
 	private void OnItemDragOver(object sender, DragEventArgs e)
 	{
+		if (HasExternalFileDrop(e))
+		{
+			e.Effects = DragDropEffects.Copy;
+			e.Handled = true;
+			return;
+		}
 		AppItemViewModel? dragItem = ResolveDragItem(e);
 		if (ViewModel.CanReorder && dragItem != null && sender is ListBoxItem item && item.DataContext != dragItem)
 		{
@@ -167,6 +196,11 @@ public partial class OverviewView : UserControl
 
 	private void OnItemDrop(object sender, DragEventArgs e)
 	{
+		if (TryHandleExternalDrop(e))
+		{
+			ClearDragVisualState();
+			return;
+		}
 		if (sender is not ListBoxItem item)
 		{
 			return;
@@ -246,6 +280,103 @@ public partial class OverviewView : UserControl
 			return app;
 		}
 		return _dragItem;
+	}
+
+	private static bool HasExternalFileDrop(DragEventArgs e)
+	{
+		if (e.Data.GetDataPresent(typeof(AppItemViewModel)))
+		{
+			return false;
+		}
+		return e.Data.GetDataPresent(DataFormats.FileDrop);
+	}
+
+	private void HandleListDragHint(DragEventArgs e)
+	{
+		if (HasExternalFileDrop(e))
+		{
+			e.Effects = DragDropEffects.Copy;
+			e.Handled = true;
+			return;
+		}
+		if (ResolveDragItem(e) != null && ViewModel.CanReorder)
+		{
+			e.Effects = DragDropEffects.Move;
+			e.Handled = true;
+			return;
+		}
+		e.Effects = DragDropEffects.None;
+	}
+
+	private bool TryHandleExternalDrop(DragEventArgs e)
+	{
+		if (!HasExternalFileDrop(e))
+		{
+			return false;
+		}
+		if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+		{
+			e.Effects = DragDropEffects.None;
+			e.Handled = true;
+			return true;
+		}
+		bool added = AddItemsWithEdit(paths);
+		e.Effects = added ? DragDropEffects.Copy : DragDropEffects.None;
+		e.Handled = true;
+		return true;
+	}
+
+	private bool AddItemsWithEdit(IEnumerable<string> rawPaths)
+	{
+		List<string> inputPaths = rawPaths.Where((string path) => !string.IsNullOrWhiteSpace(path)).Select((string path) => path.Trim()).ToList();
+		IReadOnlyList<string> supportedPaths = AppServices.Catalog.GetSupportedInputPaths(inputPaths);
+		if (supportedPaths.Count == 0)
+		{
+			MessageBox.Show("仅支持添加 .exe、.lnk 或文件夹。", "无法添加", MessageBoxButton.OK, MessageBoxImage.Information);
+			return false;
+		}
+		Window? owner = Window.GetWindow(this);
+		List<ApplicationItem> addedItems = new List<ApplicationItem>();
+		try
+		{
+			foreach (string path in supportedPaths)
+			{
+				ApplicationItem item = AppServices.Catalog.AddApp(path);
+				addedItems.Add(item);
+				EditAppDialog editDialog = new EditAppDialog(item)
+				{
+					Owner = owner
+				};
+				if (editDialog.ShowDialog() != true)
+				{
+					AppServices.Catalog.RemoveApp(item.Id);
+					addedItems.Remove(item);
+					continue;
+				}
+				AppServices.Catalog.UpdateApp(editDialog.EditedItem);
+			}
+			ViewModel.LoadApps();
+			AppServices.StatusScheduler.RequestImmediateRefresh();
+			if (addedItems.Count == 0)
+			{
+				return false;
+			}
+			if (supportedPaths.Count != inputPaths.Count)
+			{
+				MessageBox.Show($"已添加 {addedItems.Count} 项，部分不支持或重复的路径已忽略。", "添加完成", MessageBoxButton.OK, MessageBoxImage.Information);
+			}
+			return true;
+		}
+		catch (Exception ex)
+		{
+			foreach (ApplicationItem item2 in addedItems)
+			{
+				AppServices.Catalog.RemoveApp(item2.Id);
+			}
+			ViewModel.LoadApps();
+			MessageBox.Show("添加失败：" + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+			return false;
+		}
 	}
 
 	private void CommitDrop(ListBox listBox, AppItemViewModel? target, DragEventArgs e)

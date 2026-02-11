@@ -65,6 +65,14 @@ public sealed class LaunchService
 			{
 				UseShellExecute = true
 			});
+			return;
+		}
+		if (Directory.Exists(path))
+		{
+			Process.Start(new ProcessStartInfo("explorer.exe", "\"" + path + "\"")
+			{
+				UseShellExecute = true
+			});
 		}
 	}
 
@@ -90,7 +98,7 @@ public sealed class LaunchService
 				};
 			}
 		}
-		if (string.IsNullOrWhiteSpace(app.TargetPath) || !File.Exists(app.TargetPath))
+		if (string.IsNullOrWhiteSpace(app.TargetPath) || (!File.Exists(app.TargetPath) && !Directory.Exists(app.TargetPath)))
 		{
 			return new LaunchResult
 			{
@@ -100,14 +108,15 @@ public sealed class LaunchService
 		}
 		try
 		{
+			bool isDirectory = Directory.Exists(app.TargetPath);
 			Process process = Process.Start(new ProcessStartInfo
 			{
 				FileName = app.TargetPath,
-				Arguments = args,
-				WorkingDirectory = string.IsNullOrWhiteSpace(app.WorkingDirectory) ? Path.GetDirectoryName(app.TargetPath) ?? string.Empty : app.WorkingDirectory,
+				Arguments = isDirectory ? string.Empty : args,
+				WorkingDirectory = ResolveWorkingDirectory(app, isDirectory),
 				UseShellExecute = true
 			});
-			if (process == null)
+			if (process == null && !isDirectory)
 			{
 				return new LaunchResult
 				{
@@ -116,12 +125,15 @@ public sealed class LaunchService
 				};
 			}
 			app.LastLaunchTime = DateTime.Now;
-			_processControl.RegisterProcess(app.Id, process.Id);
+			if (app.TrackProcess && !isDirectory && process != null)
+			{
+				_processControl.RegisterProcess(app.Id, process.Id);
+			}
 			AppServices.StatusScheduler.RequestImmediateRefresh();
 			return new LaunchResult
 			{
 				Success = true,
-				ProcessId = process.Id
+				ProcessId = process?.Id
 			};
 		}
 		catch (Exception ex)
@@ -133,6 +145,19 @@ public sealed class LaunchService
 				ErrorMessage = ex.Message
 			};
 		}
+	}
+
+	private static string ResolveWorkingDirectory(ApplicationItem app, bool isDirectory)
+	{
+		if (!string.IsNullOrWhiteSpace(app.WorkingDirectory))
+		{
+			return app.WorkingDirectory;
+		}
+		if (isDirectory)
+		{
+			return app.TargetPath;
+		}
+		return Path.GetDirectoryName(app.TargetPath) ?? string.Empty;
 	}
 
 	private static bool TryActivateRunningWindow(IReadOnlyList<int> processIds, out int focusedPid)
