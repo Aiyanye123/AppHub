@@ -1,26 +1,25 @@
-# AppHub
+﻿# AppHub
 
 轻量级 Windows 应用总览启动器（WPF / .NET 8）。
 
-AppHub 用于集中管理常用应用，提供统一的添加、启动、状态查看、关闭和配置能力，减少多应用切换成本。
+AppHub 用于集中管理常用应用，提供统一的添加、启动、状态查看、关闭与配置能力，减少多应用切换成本。
 
 ## 功能概览
 
-- 支持添加 `*.exe` 与 `*.lnk` 应用
-- 应用编辑：名称、分组、参数、工作目录、图标、进程跟踪
-- 启动策略：总是新开实例 / 优先激活已运行窗口
-- 关闭策略：优雅关闭 + 可选强制结束
-- 总览页支持搜索、分组筛选、排序、拖拽重排、置顶
-- 主题切换（浅色 / 深色）与背景效果配置
-- 托盘驻留（关闭窗口默认最小化到托盘）
-- 配置本地持久化与日志目录管理
+- 支持添加 `*.exe`、`*.lnk`、文件夹
+- 支持在总览页直接拖入 `*.exe`、`*.lnk`、文件夹添加应用
+- 支持按钮添加：`添加应用`、`添加文件夹`
+- 支持应用编辑：名称、分组、参数、工作目录、图标、进程跟踪
+- 支持启动策略：新开实例 / 优先激活已运行窗口
+- 支持关闭策略：优雅关闭 + 可选强制结束
+- 支持总览搜索、分组筛选、排序、拖拽重排、置顶
+- 支持浅色/深色主题、托盘驻留、本地配置与日志管理
 
 ## 运行环境
 
-- Windows 10 19041+ 或 Windows 11
+- Windows 10 19041+ / Windows 11
 - .NET SDK 8.0+
-
-目标框架：`net8.0-windows10.0.19041.0`
+- 目标框架：`net8.0-windows10.0.19041.0`
 
 ## 快速开始
 
@@ -58,19 +57,20 @@ dotnet run --project src/AppHub/AppHub.csproj -- --autostart=true --log-path="C:
 ```text
 .
 |-- AppHub.sln
+|-- README.md
+|-- 设计文档.md
+|-- 架构文档.md
 |-- src/
 |   `-- AppHub/
 |       |-- AppHub.csproj
-|       |-- AppHub/                # 业务代码（Models/Services/ViewModels 等）
+|       |-- AppHub/                 # 业务代码（Models/Services/ViewModels 等）
 |       |-- views/ controls/        # XAML 视图与控件
 |       `-- app.xaml mainwindow.xaml
-|-- tests/
-|   `-- AppHub.Tests/
-|-- 设计文档.md
-`-- 架构文档.md
+`-- tests/
+    `-- AppHub.Tests/
 ```
 
 ## 说明
 
-- 本项目当前仅支持 Windows 桌面环境。
-- 如需了解细节设计与模块职责，请查看 `设计文档.md` 和 `架构文档.md`。
+- 当前仅支持 Windows 桌面环境。
+- 详细设计与模块职责见：`设计文档.md`、`架构文档.md`。

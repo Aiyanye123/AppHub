@@ -42,6 +42,45 @@ public sealed class AppCatalogService
 		return item;
 	}
 
+	public bool IsSupportedPath(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path))
+		{
+			return false;
+		}
+		string normalizedPath = path.Trim();
+		if (Directory.Exists(normalizedPath))
+		{
+			return true;
+		}
+		if (!File.Exists(normalizedPath))
+		{
+			return false;
+		}
+		string extension = Path.GetExtension(normalizedPath);
+		return extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase);
+	}
+
+	public IReadOnlyList<string> GetSupportedInputPaths(IEnumerable<string> paths)
+	{
+		ArgumentNullException.ThrowIfNull(paths, "paths");
+		List<string> result = new List<string>();
+		HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (string path in paths)
+		{
+			if (!IsSupportedPath(path))
+			{
+				continue;
+			}
+			string normalizedPath = PathHelper.NormalizePath(path.Trim());
+			if (seen.Add(normalizedPath))
+			{
+				result.Add(path.Trim());
+			}
+		}
+		return result;
+	}
+
 	public void UpdateApp(ApplicationItem item)
 	{
 		ApplicationItem? obj = GetAppById(item.Id) ?? throw new InvalidOperationException("App not found.");
@@ -114,31 +153,53 @@ public sealed class AppCatalogService
 
 	private ApplicationItem BuildItemFromPath(string path)
 	{
-		string extension = Path.GetExtension(path);
-		if (extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+		if (string.IsNullOrWhiteSpace(path))
 		{
-			ShortcutInfo info = ShortcutHelper.Resolve(path);
+			throw new ArgumentException("Path is required.", "path");
+		}
+		string normalizedPath = path.Trim();
+		if (Directory.Exists(normalizedPath))
+		{
+			string directoryName = new DirectoryInfo(normalizedPath).Name;
 			return new ApplicationItem
 			{
-				DisplayName = Path.GetFileNameWithoutExtension(path),
+				DisplayName = (string.IsNullOrWhiteSpace(directoryName) ? normalizedPath : directoryName),
+				SourceType = SourceType.Folder,
+				TargetPath = normalizedPath,
+				WorkingDirectory = normalizedPath,
+				TrackProcess = false
+			};
+		}
+		if (!File.Exists(normalizedPath))
+		{
+			throw new FileNotFoundException("Path does not exist.", normalizedPath);
+		}
+		string extension = Path.GetExtension(normalizedPath);
+		if (extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+		{
+			ShortcutInfo info = ShortcutHelper.Resolve(normalizedPath);
+			return new ApplicationItem
+			{
+				DisplayName = Path.GetFileNameWithoutExtension(normalizedPath),
 				SourceType = SourceType.Shortcut,
 				TargetPath = info.TargetPath,
-				ShortcutPath = path,
+				ShortcutPath = normalizedPath,
 				Arguments = info.Arguments,
 				WorkingDirectory = info.WorkingDirectory
 			};
 		}
-		if (!extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+		if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
 		{
-			_logger.Warn("Unsupported file type: " + path);
+			return new ApplicationItem
+			{
+				DisplayName = Path.GetFileNameWithoutExtension(normalizedPath),
+				SourceType = SourceType.Exe,
+				TargetPath = normalizedPath,
+				WorkingDirectory = (Path.GetDirectoryName(normalizedPath) ?? string.Empty)
+			};
 		}
-		return new ApplicationItem
-		{
-			DisplayName = Path.GetFileNameWithoutExtension(path),
-			SourceType = SourceType.Exe,
-			TargetPath = path,
-			WorkingDirectory = (Path.GetDirectoryName(path) ?? string.Empty)
-		};
+		_logger.Warn("Unsupported file type: " + normalizedPath);
+		throw new InvalidOperationException("Unsupported file type: " + normalizedPath);
 	}
 
 	private static string NormalizeGroupName(string? groupName)
