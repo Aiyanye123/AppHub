@@ -18,7 +18,7 @@ public partial class AddAppDialog : Window
 	{
 		OpenFileDialog dialog = new OpenFileDialog
 		{
-			Filter = "Applications (*.exe;*.lnk)|*.exe;*.lnk",
+			Filter = "Applications (*.exe;*.lnk;*.bat)|*.exe;*.lnk;*.bat",
 			Multiselect = false
 		};
 		if (dialog.ShowDialog() == true)

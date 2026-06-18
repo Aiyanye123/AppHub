@@ -20,9 +20,12 @@ coverage/
 *.log
 *.tmp
 *.temp
+.codex_tmp/
 
 # WPF generated
 *.baml
 
-# Local recovery data
-recovered/
+# Local docs not submitted
+最近变更日志.md
+设计文档.md
+架构文档.md

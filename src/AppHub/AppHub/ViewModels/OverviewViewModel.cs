@@ -132,9 +132,11 @@ public sealed class OverviewViewModel : ViewModelBase
 			string normalized = NormalizeSortOption(value);
 			if (SetProperty(ref _selectedSort, normalized, "SelectedSort"))
 			{
+				ApplyPinAvailabilityToApps();
 				RequestDisplayRefresh();
 				OnPropertyChanged("CanReorder");
 				OnPropertyChanged("IsSortDirectionVisible");
+				OnPropertyChanged("IsPinFeatureEnabled");
 			}
 		}
 	}
@@ -158,6 +160,8 @@ public sealed class OverviewViewModel : ViewModelBase
 	public bool CanReorder => string.IsNullOrWhiteSpace(SearchQuery) && IsAllGroupsSelected && IsManualSortSelected;
 
 	public bool IsSortDirectionVisible => !IsManualSortSelected;
+
+	public bool IsPinFeatureEnabled => IsManualSortSelected;
 
 	public IEnumerable<AppItemViewModel> CurrentView => _displayFilteredApps;
 
@@ -243,6 +247,7 @@ public sealed class OverviewViewModel : ViewModelBase
 		RebuildAppLookup();
 		RefreshGroupOptions();
 		ApplyActiveGroupScopeToApps();
+		ApplyPinAvailabilityToApps();
 		RequestDisplayRefresh();
 	}
 
@@ -250,6 +255,7 @@ public sealed class OverviewViewModel : ViewModelBase
 	{
 		AppItemViewModel vm = new AppItemViewModel(item, _launchService, _processService, _iconService, OnEditRequested, OnRemoveRequested, OnTogglePinRequested);
 		vm.SetActiveGroupScope(GetActiveGroupScope());
+		vm.CanTogglePin = IsPinFeatureEnabled;
 		vm.PropertyChanged += OnItemPropertyChanged;
 		return vm;
 	}
@@ -288,7 +294,7 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private IEnumerable<AppItemViewModel> OrderApps(IEnumerable<AppItemViewModel> source)
 	{
-		if (string.Equals(SelectedSort, SortByGroupOption, StringComparison.Ordinal))
+		if (!IsManualSortSelected)
 		{
 			return OrderWithoutPinPriority(source);
 		}
@@ -397,6 +403,10 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private void OnTogglePinRequested(AppItemViewModel vm)
 	{
+		if (!IsPinFeatureEnabled)
+		{
+			return;
+		}
 		string scope = GetActiveGroupScope();
 		bool isPinned = !vm.IsPinned;
 		_catalog.SetPinned(vm.Id, scope, isPinned);
@@ -420,6 +430,15 @@ public sealed class OverviewViewModel : ViewModelBase
 		foreach (AppItemViewModel app in Apps)
 		{
 			app.SetActiveGroupScope(scope);
+		}
+	}
+
+	private void ApplyPinAvailabilityToApps()
+	{
+		bool enabled = IsPinFeatureEnabled;
+		foreach (AppItemViewModel app in Apps)
+		{
+			app.CanTogglePin = enabled;
 		}
 	}
 

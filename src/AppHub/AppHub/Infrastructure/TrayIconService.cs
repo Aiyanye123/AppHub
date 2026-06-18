@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
@@ -15,6 +17,24 @@ namespace AppHub.Infrastructure;
 public sealed class TrayIconService : IDisposable
 {
 	private const string UngroupedName = "\u672a\u5206\u7ec4";
+
+	private const uint FileAttributeDirectory = 16u;
+
+	private const uint ShgfiIcon = 0x100;
+
+	private const uint ShgfiSmallIcon = 1u;
+
+	private const uint ShgfiUseFileAttributes = 0x10;
+
+	private const int SubMenuHorizontalOverlap = 2;
+
+	private const int MenuCornerRadius = 10;
+
+	private const int MenuItemCornerRadius = 6;
+
+	private const int MenuItemHorizontalInset = 4;
+
+	private const int MenuItemVerticalInset = 2;
 
 	private static readonly Font MenuFont = new Font("Microsoft YaHei UI", 9.5f, DrawingFontStyle.Regular, GraphicsUnit.Point);
 
@@ -38,6 +58,12 @@ public sealed class TrayIconService : IDisposable
 
 	private bool _isBackgroundMode;
 
+	private bool _menuNeedsRefresh = true;
+
+	private bool _keepMenuOpenOnNextItemClick;
+
+	private int _menuAnimationToken;
+
 	public event EventHandler<bool>? BackgroundModeChanged;
 
 	public TrayIconService(Window window)
@@ -51,10 +77,7 @@ public sealed class TrayIconService : IDisposable
 			Visible = false,
 			ContextMenuStrip = _menu
 		};
-		_notifyIcon.DoubleClick += delegate
-		{
-			Restore();
-		};
+		_notifyIcon.MouseClick += OnNotifyIconMouseClick;
 		_window.StateChanged += OnWindowStateChanged;
 		_window.Closed += delegate
 		{
@@ -67,11 +90,14 @@ public sealed class TrayIconService : IDisposable
 		ContextMenuStrip contextMenuStrip = new ContextMenuStrip
 		{
 			ShowImageMargin = true,
+			ShowCheckMargin = false,
+			DropShadowEnabled = false,
+			Padding = new Padding(4),
 			Font = MenuFont
 		};
 		contextMenuStrip.Opening += OnMenuOpening;
-		ApplyMenuAppearance(contextMenuStrip);
-		RebuildMenuItems(contextMenuStrip);
+		contextMenuStrip.Closing += OnMenuClosing;
+		RefreshMenu(contextMenuStrip);
 		return contextMenuStrip;
 	}
 
@@ -79,12 +105,69 @@ public sealed class TrayIconService : IDisposable
 	{
 		try
 		{
-			RebuildMenuItems(_menu);
-			ApplyMenuAppearance(_menu);
+			if (_menuNeedsRefresh)
+			{
+				RefreshMenu(_menu);
+			}
+			else
+			{
+				ApplyMenuAppearance(_menu);
+			}
 		}
 		catch (Exception ex)
 		{
 			AppServices.Logger.Error("Tray menu refresh failed", ex);
+		}
+	}
+
+	private void OnMenuClosing(object? sender, ToolStripDropDownClosingEventArgs e)
+	{
+		if (_keepMenuOpenOnNextItemClick && e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+		{
+			e.Cancel = true;
+		}
+		_keepMenuOpenOnNextItemClick = false;
+	}
+
+	private void RefreshMenu(ContextMenuStrip menu, bool keepBottomEdge = false, bool animateVerticalShift = false)
+	{
+		bool keepLocation = menu.Visible;
+		System.Drawing.Point currentLocation = menu.Location;
+		int currentBottom = menu.Bottom;
+		int animationToken = ++_menuAnimationToken;
+		RebuildMenuItems(menu);
+		ApplyMenuAppearance(menu);
+		if (keepLocation)
+		{
+			int y = keepBottomEdge ? currentBottom - menu.Height : currentLocation.Y;
+			if (animateVerticalShift && y != currentLocation.Y)
+			{
+				AnimateMenuVerticalShift(menu, currentLocation.X, currentLocation.Y, y, animationToken);
+			}
+			else
+			{
+				menu.Location = new System.Drawing.Point(currentLocation.X, y);
+			}
+		}
+		_menuNeedsRefresh = false;
+	}
+
+	private async void AnimateMenuVerticalShift(ContextMenuStrip menu, int x, int fromY, int toY, int token)
+	{
+		const int frameCount = 8;
+		const int frameDelayMs = 12;
+		for (int i = 1; i <= frameCount; i++)
+		{
+			if (token != _menuAnimationToken || !menu.Visible)
+			{
+				return;
+			}
+
+			double t = (double)i / frameCount;
+			double eased = 1.0 - Math.Pow(1.0 - t, 3.0);
+			int y = fromY + (int)Math.Round((toY - fromY) * eased);
+			menu.Location = new System.Drawing.Point(x, y);
+			await Task.Delay(frameDelayMs);
 		}
 	}
 
@@ -101,9 +184,9 @@ public sealed class TrayIconService : IDisposable
 			runningOnlyItem.Checked = _showRunningOnlyApps;
 			runningOnlyItem.Click += delegate
 			{
+				_keepMenuOpenOnNextItemClick = true;
 				_showRunningOnlyApps = runningOnlyItem.Checked;
-				RebuildMenuItems(menu);
-				ApplyMenuAppearance(menu);
+				RefreshMenu(menu, keepBottomEdge: true, animateVerticalShift: true);
 			};
 			menu.Items.Add(runningOnlyItem);
 			menu.Items.Add(new ToolStripSeparator());
@@ -133,6 +216,7 @@ public sealed class TrayIconService : IDisposable
 						int runningCount = group.Apps.Count((ApplicationItem app) => runningStates.TryGetValue(app.Id, out bool isRunning) && isRunning);
 						ToolStripMenuItem groupItem = CreateMenuItem($"{group.Name} ({runningCount}/{group.Apps.Count})");
 						groupItem.Image = runningCount > 0 ? RunningDot : StoppedDot;
+						AttachDropDownSnap(groupItem);
 
 						foreach (ApplicationItem app in group.Apps)
 						{
@@ -262,7 +346,11 @@ public sealed class TrayIconService : IDisposable
 		if (!string.IsNullOrWhiteSpace(app.TargetPath))
 		{
 			string path = app.TargetPath;
-			if (File.Exists(path) || Directory.Exists(path))
+			if (app.SourceType == SourceType.Folder || Directory.Exists(path))
+			{
+				return LoadFolderIcon(size);
+			}
+			if (File.Exists(path))
 			{
 				try
 				{
@@ -276,6 +364,19 @@ public sealed class TrayIconService : IDisposable
 				catch
 				{
 				}
+			}
+		}
+		using Bitmap fallback = SystemIcons.Application.ToBitmap();
+		return ScaleToSquare(fallback, size);
+	}
+
+	private static Image LoadFolderIcon(int size)
+	{
+		if (TryGetShellFolderIcon(out Bitmap? folderBitmap) && folderBitmap != null)
+		{
+			using (folderBitmap)
+			{
+				return ScaleToSquare(folderBitmap, size);
 			}
 		}
 		using Bitmap fallback = SystemIcons.Application.ToBitmap();
@@ -391,6 +492,7 @@ public sealed class TrayIconService : IDisposable
 
 	private void ToggleAppFromTray(ApplicationItem app, bool isRunning)
 	{
+		_menuNeedsRefresh = true;
 		if (isRunning)
 		{
 			_ = ExecuteOnUiThreadAsync(delegate
@@ -480,6 +582,10 @@ public sealed class TrayIconService : IDisposable
 		MenuPalette palette = MenuPalette.FromTheme(AppServices.Config.Settings.IsDarkMode);
 		menu.RenderMode = ToolStripRenderMode.Professional;
 		menu.Renderer = new TrayMenuRenderer(new TrayMenuColorTable(palette), palette);
+		menu.ShowCheckMargin = false;
+		menu.ShowImageMargin = true;
+		menu.DropShadowEnabled = false;
+		menu.Padding = new Padding(4);
 		menu.BackColor = palette.Background;
 		menu.ForeColor = palette.Text;
 		menu.Font = MenuFont;
@@ -501,9 +607,64 @@ public sealed class TrayIconService : IDisposable
 				{
 					dropDownMenu.ShowImageMargin = true;
 					dropDownMenu.ShowCheckMargin = false;
+					dropDownMenu.DropShadowEnabled = false;
+					dropDownMenu.Padding = new Padding(4);
+					dropDownMenu.Margin = Padding.Empty;
 				}
 				ApplyMenuItemAppearance(menuItem.DropDownItems, palette);
 			}
+		}
+	}
+
+	private static void AttachDropDownSnap(ToolStripMenuItem menuItem)
+	{
+		menuItem.DropDownOpened += delegate
+		{
+			SnapDropDownToParent(menuItem);
+			menuItem.Owner?.Invalidate(menuItem.Bounds);
+		};
+		menuItem.DropDownClosed += delegate
+		{
+			menuItem.Owner?.Invalidate(menuItem.Bounds);
+		};
+	}
+
+	private static void SnapDropDownToParent(ToolStripMenuItem menuItem)
+	{
+		if (menuItem.Owner == null)
+		{
+			return;
+		}
+		ToolStripDropDown dropDown = menuItem.DropDown;
+		if (!dropDown.Visible)
+		{
+			return;
+		}
+		System.Drawing.Point ownerScreen = menuItem.Owner.PointToScreen(System.Drawing.Point.Empty);
+		Rectangle bounds = menuItem.Bounds;
+		int x = ownerScreen.X + bounds.Right - SubMenuHorizontalOverlap;
+		int y = ownerScreen.Y + bounds.Top;
+		dropDown.Location = new System.Drawing.Point(x, y);
+	}
+
+	private static bool TryGetShellFolderIcon(out Bitmap? bitmap)
+	{
+		bitmap = null;
+		ShFileInfo fileInfo = default(ShFileInfo);
+		nint result = SHGetFileInfo("folder", FileAttributeDirectory, ref fileInfo, (uint)Marshal.SizeOf<ShFileInfo>(), ShgfiIcon | ShgfiSmallIcon | ShgfiUseFileAttributes);
+		if (result == IntPtr.Zero || fileInfo.hIcon == IntPtr.Zero)
+		{
+			return false;
+		}
+		try
+		{
+			using Icon icon = Icon.FromHandle(fileInfo.hIcon);
+			bitmap = icon.ToBitmap();
+			return true;
+		}
+		finally
+		{
+			DestroyIcon(fileInfo.hIcon);
 		}
 	}
 
@@ -511,12 +672,20 @@ public sealed class TrayIconService : IDisposable
 	{
 		if (_window.WindowState == WindowState.Minimized)
 		{
-			_notifyIcon.Visible = false;
+			_notifyIcon.Visible = true;
 		}
 		else if (_window.IsVisible)
 		{
-			_notifyIcon.Visible = false;
+			_notifyIcon.Visible = true;
 			SetBackgroundMode(isBackground: false);
+		}
+	}
+
+	private void OnNotifyIconMouseClick(object? sender, MouseEventArgs e)
+	{
+		if (e.Button == MouseButtons.Left)
+		{
+			Restore();
 		}
 	}
 
@@ -524,6 +693,7 @@ public sealed class TrayIconService : IDisposable
 	{
 		_window.Hide();
 		_notifyIcon.Visible = true;
+		_menuNeedsRefresh = true;
 		SetBackgroundMode(isBackground: true);
 		if (!_balloonShown)
 		{
@@ -537,7 +707,7 @@ public sealed class TrayIconService : IDisposable
 		_window.Show();
 		_window.WindowState = WindowState.Normal;
 		_window.Activate();
-		_notifyIcon.Visible = false;
+		_notifyIcon.Visible = true;
 		SetBackgroundMode(isBackground: false);
 	}
 
@@ -565,7 +735,9 @@ public sealed class TrayIconService : IDisposable
 	{
 		SetBackgroundMode(isBackground: false);
 		_notifyIcon.Visible = false;
+		_notifyIcon.MouseClick -= OnNotifyIconMouseClick;
 		_menu.Opening -= OnMenuOpening;
+		_menu.Closing -= OnMenuClosing;
 		DisposeMenuScopedImages();
 		foreach (CachedAppIcon icon in _appIconCache.Values)
 		{
@@ -593,6 +765,29 @@ public sealed class TrayIconService : IDisposable
 		using SolidBrush brush = new SolidBrush(color);
 		graphics.FillEllipse(brush, 1, 1, 8, 8);
 		return bitmap;
+	}
+
+	[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+	private static extern nint SHGetFileInfo(string pszPath, uint dwFileAttributes, ref ShFileInfo psfi, uint cbFileInfo, uint uFlags);
+
+	[DllImport("user32.dll", SetLastError = true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static extern bool DestroyIcon(nint hIcon);
+
+	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+	private struct ShFileInfo
+	{
+		public nint hIcon;
+
+		public int iIcon;
+
+		public uint dwAttributes;
+
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+		public string szDisplayName;
+
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+		public string szTypeName;
 	}
 
 	private sealed record ApplicationGroupMenu(string Name, IReadOnlyList<ApplicationItem> Apps);
@@ -625,7 +820,7 @@ public sealed class TrayIconService : IDisposable
 
 		public static MenuPalette FromTheme(bool isDarkMode)
 		{
-			return isDarkMode ? new MenuPalette(ColorTranslator.FromHtml("#0F172A"), ColorTranslator.FromHtml("#162033"), ColorTranslator.FromHtml("#1E293B"), ColorTranslator.FromHtml("#1F2937"), ColorTranslator.FromHtml("#E2E8F0"), ColorTranslator.FromHtml("#94A3B8")) : new MenuPalette(ColorTranslator.FromHtml("#FFFFFF"), ColorTranslator.FromHtml("#F1F5F9"), ColorTranslator.FromHtml("#E2E8F0"), ColorTranslator.FromHtml("#E2E8F0"), ColorTranslator.FromHtml("#1E293B"), ColorTranslator.FromHtml("#64748B"));
+			return isDarkMode ? new MenuPalette(ColorTranslator.FromHtml("#111827"), ColorTranslator.FromHtml("#374151"), ColorTranslator.FromHtml("#4B5563"), ColorTranslator.FromHtml("#374151"), ColorTranslator.FromHtml("#E5E7EB"), ColorTranslator.FromHtml("#9CA3AF")) : new MenuPalette(ColorTranslator.FromHtml("#FFFFFF"), ColorTranslator.FromHtml("#F0F0F0"), ColorTranslator.FromHtml("#F0F0F0"), ColorTranslator.FromHtml("#E5E7EB"), ColorTranslator.FromHtml("#1F2937"), ColorTranslator.FromHtml("#6B7280"));
 		}
 	}
 
@@ -684,8 +879,71 @@ public sealed class TrayIconService : IDisposable
 			Rectangle borderRect = new Rectangle(System.Drawing.Point.Empty, e.ToolStrip.Size);
 			borderRect.Width--;
 			borderRect.Height--;
+			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+			using GraphicsPath path = CreateRoundedRectanglePath(borderRect, MenuCornerRadius);
 			using Pen pen = new Pen(_palette.Border);
-			e.Graphics.DrawRectangle(pen, borderRect);
+			e.Graphics.DrawPath(pen, path);
+		}
+
+		protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+		{
+			Rectangle backgroundRect = new Rectangle(System.Drawing.Point.Empty, e.ToolStrip.Size);
+			if (backgroundRect.Width <= 1 || backgroundRect.Height <= 1)
+			{
+				return;
+			}
+
+			backgroundRect.Width--;
+			backgroundRect.Height--;
+			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+			using GraphicsPath path = CreateRoundedRectanglePath(backgroundRect, MenuCornerRadius);
+			Region? oldRegion = e.ToolStrip.Region;
+			e.ToolStrip.Region = new Region(path);
+			oldRegion?.Dispose();
+			using SolidBrush brush = new SolidBrush(_palette.Background);
+			e.Graphics.FillPath(brush, path);
+		}
+
+		protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+		{
+			bool isTopLevelItem = e.Item.Owner is ContextMenuStrip;
+			if (isTopLevelItem)
+			{
+				base.OnRenderMenuItemBackground(e);
+				return;
+			}
+
+			bool hasVisibleDropDown = e.Item is ToolStripMenuItem menuItem && menuItem.DropDown.Visible;
+			bool isActive = e.Item.Pressed || e.Item.Selected || hasVisibleDropDown;
+			int horizontalInset = MenuItemHorizontalInset;
+			int verticalInset = MenuItemVerticalInset;
+
+			Rectangle bounds = e.Item.Bounds;
+			Rectangle fillRect = Rectangle.Inflate(bounds, -horizontalInset, -verticalInset);
+			if (fillRect.Width <= 0 || fillRect.Height <= 0)
+			{
+				return;
+			}
+
+			Color fillColor = _palette.Background;
+			if (e.Item.Pressed)
+			{
+				fillColor = _palette.Pressed;
+			}
+			else if (isActive)
+			{
+				fillColor = _palette.Hover;
+			}
+
+			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+			using GraphicsPath path = CreateRoundedRectanglePath(fillRect, MenuItemCornerRadius);
+			using SolidBrush brush = new SolidBrush(fillColor);
+			e.Graphics.FillPath(brush, path);
+			if (isActive)
+			{
+				using Pen pen = new Pen(_palette.Border);
+				e.Graphics.DrawPath(pen, path);
+			}
 		}
 
 		protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
@@ -699,6 +957,29 @@ public sealed class TrayIconService : IDisposable
 		{
 			e.TextColor = e.Item.Enabled ? _palette.Text : _palette.SubtleText;
 			base.OnRenderItemText(e);
+		}
+
+		private static GraphicsPath CreateRoundedRectanglePath(Rectangle rect, int radius)
+		{
+			GraphicsPath path = new GraphicsPath();
+			if (rect.Width <= 0 || rect.Height <= 0)
+			{
+				return path;
+			}
+
+			int safeRadius = Math.Max(1, Math.Min(radius, Math.Min(rect.Width, rect.Height) / 2));
+			int diameter = safeRadius * 2;
+			Rectangle arc = new Rectangle(rect.Location, new System.Drawing.Size(diameter, diameter));
+
+			path.AddArc(arc, 180, 90);
+			arc.X = rect.Right - diameter;
+			path.AddArc(arc, 270, 90);
+			arc.Y = rect.Bottom - diameter;
+			path.AddArc(arc, 0, 90);
+			arc.X = rect.Left;
+			path.AddArc(arc, 90, 90);
+			path.CloseFigure();
+			return path;
 		}
 	}
 }

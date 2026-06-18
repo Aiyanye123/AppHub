@@ -10,6 +10,13 @@ namespace AppHub.Services;
 
 public sealed class AppCatalogService
 {
+	private static readonly HashSet<string> SupportedFileExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+	{
+		".exe",
+		".lnk",
+		".bat"
+	};
+
 	private readonly StorageService _storage;
 
 	private readonly AppConfig _config;
@@ -58,7 +65,7 @@ public sealed class AppCatalogService
 			return false;
 		}
 		string extension = Path.GetExtension(normalizedPath);
-		return extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase);
+		return IsSupportedFileExtension(extension);
 	}
 
 	public IReadOnlyList<string> GetSupportedInputPaths(IEnumerable<string> paths)
@@ -188,7 +195,7 @@ public sealed class AppCatalogService
 				WorkingDirectory = info.WorkingDirectory
 			};
 		}
-		if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+		if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase))
 		{
 			return new ApplicationItem
 			{
@@ -200,6 +207,11 @@ public sealed class AppCatalogService
 		}
 		_logger.Warn("Unsupported file type: " + normalizedPath);
 		throw new InvalidOperationException("Unsupported file type: " + normalizedPath);
+	}
+
+	private static bool IsSupportedFileExtension(string extension)
+	{
+		return SupportedFileExtensions.Contains(extension);
 	}
 
 	private static string NormalizeGroupName(string? groupName)

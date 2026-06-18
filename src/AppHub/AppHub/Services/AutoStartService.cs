@@ -7,6 +7,7 @@ namespace AppHub.Services;
 public sealed class AutoStartService
 {
 	private const string AppName = "AppHub";
+	private const string AutoStartArguments = "--start-in-background";
 
 	private readonly AppLogger _logger;
 
@@ -17,19 +18,19 @@ public sealed class AutoStartService
 
 	public bool IsEnabled()
 	{
-		return RegistryHelper.IsAutoStartEnabled("AppHub");
+		return RegistryHelper.IsAutoStartEnabled(AppName);
 	}
 
 	public void Enable()
 	{
 		string path = GetStartupPath();
-		RegistryHelper.SetAutoStart("AppHub", path, string.Empty);
+		RegistryHelper.SetAutoStart(AppName, path, AutoStartArguments);
 		_logger.Info("Auto-start enabled.");
 	}
 
 	public void Disable()
 	{
-		RegistryHelper.RemoveAutoStart("AppHub");
+		RegistryHelper.RemoveAutoStart(AppName);
 		_logger.Info("Auto-start disabled.");
 	}
 

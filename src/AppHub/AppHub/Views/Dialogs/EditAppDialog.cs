@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using AppHub.Models;
 using Microsoft.Win32;
@@ -10,8 +12,15 @@ public partial class EditAppDialog : Window
 {
 	public ApplicationItem EditedItem { get; }
 
-	public EditAppDialog(ApplicationItem model)
+	public IReadOnlyList<string> AvailableGroupNames { get; }
+
+	public EditAppDialog(ApplicationItem model, IReadOnlyList<string>? availableGroupNames = null)
 	{
+		AvailableGroupNames = (availableGroupNames ?? Array.Empty<string>()).Where((string groupName) => !string.IsNullOrWhiteSpace(groupName))
+			.Select((string groupName) => groupName.Trim())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.OrderBy((string groupName) => groupName, StringComparer.OrdinalIgnoreCase)
+			.ToList();
 		InitializeComponent();
 		EditedItem = model.Clone();
 		base.DataContext = EditedItem;

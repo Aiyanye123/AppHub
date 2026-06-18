@@ -48,11 +48,21 @@ public partial class OverviewView : UserControl
 	{
 	}
 
+	private void OnAddMenuClick(object sender, RoutedEventArgs e)
+	{
+		if (sender is Button button && button.ContextMenu != null)
+		{
+			button.ContextMenu.PlacementTarget = button;
+			button.ContextMenu.IsOpen = true;
+			e.Handled = true;
+		}
+	}
+
 	private void OnAddClick(object sender, RoutedEventArgs e)
 	{
 		OpenFileDialog dialog = new OpenFileDialog
 		{
-			Filter = "应用程序 (*.exe;*.lnk)|*.exe;*.lnk",
+			Filter = "应用程序 (*.exe;*.lnk;*.bat)|*.exe;*.lnk;*.bat",
 			Multiselect = false
 		};
 		if (dialog.ShowDialog() == true)
@@ -82,7 +92,7 @@ public partial class OverviewView : UserControl
 
 	private void OnEditRequested(AppItemViewModel vm)
 	{
-		EditAppDialog editDialog = new EditAppDialog(vm.Model)
+		EditAppDialog editDialog = new EditAppDialog(vm.Model, AppServices.Catalog.GetGroupNames())
 		{
 			Owner = Window.GetWindow((DependencyObject)(object)this)
 		};
@@ -332,7 +342,7 @@ public partial class OverviewView : UserControl
 		IReadOnlyList<string> supportedPaths = AppServices.Catalog.GetSupportedInputPaths(inputPaths);
 		if (supportedPaths.Count == 0)
 		{
-			MessageBox.Show("仅支持添加 .exe、.lnk 或文件夹。", "无法添加", MessageBoxButton.OK, MessageBoxImage.Information);
+			MessageBox.Show("仅支持添加 .exe、.lnk、.bat 或文件夹。", "无法添加", MessageBoxButton.OK, MessageBoxImage.Information);
 			return false;
 		}
 		Window? owner = Window.GetWindow(this);
@@ -343,7 +353,7 @@ public partial class OverviewView : UserControl
 			{
 				ApplicationItem item = AppServices.Catalog.AddApp(path);
 				addedItems.Add(item);
-				EditAppDialog editDialog = new EditAppDialog(item)
+				EditAppDialog editDialog = new EditAppDialog(item, AppServices.Catalog.GetGroupNames())
 				{
 					Owner = owner
 				};

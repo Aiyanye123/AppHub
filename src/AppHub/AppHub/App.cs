@@ -25,15 +25,23 @@ public partial class App : Application
 	private void OnStartup(object sender, StartupEventArgs e)
 	{
 		AppServices.Initialize();
-		AppServices.ApplyCommandLine(CommandLineOptions.Parse(Environment.GetCommandLineArgs()));
+		CommandLineOptions options = CommandLineOptions.Parse(Environment.GetCommandLineArgs());
+		AppServices.ApplyCommandLine(options);
 		MainWindow window = (MainWindow)(base.MainWindow = new MainWindow());
 		window.Topmost = AppServices.Config.Settings.AlwaysOnTop;
 		ThemeService.ApplyTheme(AppServices.Config.Settings.IsDarkMode);
 		BackgroundEffectService.Apply(window, AppServices.Config.Settings);
-		window.Show();
 		_trayIconService = new TrayIconService(window);
 		_trayIconService.BackgroundModeChanged += OnBackgroundModeChanged;
 		TrayIconService = _trayIconService;
+		if (options.StartInBackground)
+		{
+			_trayIconService.HideToTray();
+		}
+		else
+		{
+			window.Show();
+		}
 		AppServices.StatusScheduler.Start();
 	}
 

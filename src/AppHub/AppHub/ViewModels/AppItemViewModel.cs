@@ -34,6 +34,8 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	private bool _isPinned;
 
+	private bool _canTogglePin = true;
+
 	private DateTime? _lastLaunchTime;
 
 	private bool _isActionRunning;
@@ -86,6 +88,23 @@ public sealed class AppItemViewModel : ViewModelBase
 			if (SetProperty(ref _isPinned, value, "IsPinned"))
 			{
 				OnPropertyChanged("PinMenuText");
+				OnPropertyChanged("ShowPinBadge");
+			}
+		}
+	}
+
+	public bool CanTogglePin
+	{
+		get
+		{
+			return _canTogglePin;
+		}
+		set
+		{
+			if (SetProperty(ref _canTogglePin, value, "CanTogglePin"))
+			{
+				OnPropertyChanged("ShowPinBadge");
+				NotifyCommandStateChanged();
 			}
 		}
 	}
@@ -97,6 +116,8 @@ public sealed class AppItemViewModel : ViewModelBase
 	public int SortIndex => _model.SortIndex;
 
 	public string PinMenuText => IsPinned ? "\u53d6\u6d88\u7f6e\u9876" : "\u7f6e\u9876";
+
+	public bool ShowPinBadge => IsPinned && CanTogglePin;
 
 	public bool IsRunning
 	{
@@ -176,7 +197,7 @@ public sealed class AppItemViewModel : ViewModelBase
 		TogglePinCommand = new RelayCommand(delegate
 		{
 			_togglePinRequested?.Invoke(this);
-		}, CanInteract);
+		}, CanTogglePinCommand);
 
 		RefreshIcon();
 		NotifyCommandStateChanged();
@@ -227,6 +248,7 @@ public sealed class AppItemViewModel : ViewModelBase
 		OnPropertyChanged("LastLaunchTicks");
 		OnPropertyChanged("SortIndex");
 		OnPropertyChanged("PinMenuText");
+		OnPropertyChanged("ShowPinBadge");
 		RefreshIcon();
 		NotifyCommandStateChanged();
 	}
@@ -290,6 +312,11 @@ public sealed class AppItemViewModel : ViewModelBase
 	private bool CanInteract()
 	{
 		return !IsActionRunning;
+	}
+
+	private bool CanTogglePinCommand()
+	{
+		return CanInteract() && CanTogglePin;
 	}
 
 	private void NotifyCommandStateChanged()
