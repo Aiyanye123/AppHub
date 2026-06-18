@@ -58,8 +58,6 @@ dotnet run --project src/AppHub/AppHub.csproj -- --autostart=true --log-path="C:
 .
 |-- AppHub.sln
 |-- README.md
-|-- 设计文档.md
-|-- 架构文档.md
 |-- src/
 |   `-- AppHub/
 |       |-- AppHub.csproj
