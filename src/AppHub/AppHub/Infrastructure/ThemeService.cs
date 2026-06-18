@@ -12,20 +12,20 @@ public static class ThemeService
 		{
 			if (isDark)
 			{
-				UpdateBrush(resources, "AppBgBrush", "#0B1220");
-				UpdateBrush(resources, "PageRootBgBrush", "#0B1220");
-				UpdateBrush(resources, "CardBgBrush", "#0F172A");
-				UpdateBrush(resources, "SidebarBgBrush", "#0F172A");
-				UpdateBrush(resources, "ProgramCardBgBrush", "#0F172A");
-				UpdateBrush(resources, "PrimaryBrush", "#1E293B");
-				UpdateBrush(resources, "PrimaryHoverBrush", "#334155");
-				UpdateBrush(resources, "PrimaryPressedBrush", "#475569");
-				UpdateBrush(resources, "AccentBrush", "#38BDF8");
-				UpdateBrush(resources, "SuccessBrush", "#22C55E");
-				UpdateBrush(resources, "TextBrush", "#E2E8F0");
-				UpdateBrush(resources, "SubtleTextBrush", "#94A3B8");
-				UpdateBrush(resources, "BorderBrush", "#1F2937");
-				UpdateBrush(resources, "HoverBgBrush", "#111827");
+				UpdateBrush(resources, "AppBgBrush", "#06101D");
+				UpdateBrush(resources, "PageRootBgBrush", "#06101D");
+				UpdateBrush(resources, "CardBgBrush", "#101A2B");
+				UpdateBrush(resources, "SidebarBgBrush", "#081321");
+				UpdateBrush(resources, "ProgramCardBgBrush", "#101A2B");
+				UpdateBrush(resources, "PrimaryBrush", "#2563EB");
+				UpdateBrush(resources, "PrimaryHoverBrush", "#2F87FF");
+				UpdateBrush(resources, "PrimaryPressedBrush", "#1D4ED8");
+				UpdateBrush(resources, "AccentBrush", "#2F87FF");
+				UpdateBrush(resources, "SuccessBrush", "#30D16F");
+				UpdateBrush(resources, "TextBrush", "#EAF2FF");
+				UpdateBrush(resources, "SubtleTextBrush", "#8EA2BF");
+				UpdateBrush(resources, "BorderBrush", "#29384E");
+				UpdateBrush(resources, "HoverBgBrush", "#172842");
 				UpdateBrush(resources, "DisabledBgBrush", "#1F2937");
 				UpdateBrush(resources, "DisabledBorderBrush", "#334155");
 				UpdateBrush(resources, "DisabledTextBrush", "#64748B");

@@ -121,11 +121,20 @@
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
                   <Setter TargetName="border" Value="{DynamicResource PrimaryPressedBrush}" Property="system:Border.Background" />
-                  <Setter TargetName="border" Property="UIElement.RenderTransform">
-                    <Setter.Value>
-                      <TranslateTransform Y="0" />
-                    </Setter.Value>
-                  </Setter>
+                  <Trigger.EnterActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="1" Duration="0:0:0.08" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.EnterActions>
+                  <Trigger.ExitActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.ExitActions>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                   <Setter TargetName="border" Value="{DynamicResource DisabledBgBrush}" Property="system:Border.Background" />
@@ -174,11 +183,20 @@
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
                   <Setter TargetName="border" Value="{DynamicResource HoverBgBrush}" Property="system:Border.Background" />
-                  <Setter TargetName="border" Property="UIElement.RenderTransform">
-                    <Setter.Value>
-                      <TranslateTransform Y="0" />
-                    </Setter.Value>
-                  </Setter>
+                  <Trigger.EnterActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="1" Duration="0:0:0.08" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.EnterActions>
+                  <Trigger.ExitActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.ExitActions>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                   <Setter Value="{DynamicResource DisabledTextBrush}" Property="Foreground" />
@@ -228,11 +246,20 @@
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
                   <Setter TargetName="border" Value="{DynamicResource SuccessButtonPressedBrush}" Property="system:Border.Background" />
-                  <Setter TargetName="border" Property="UIElement.RenderTransform">
-                    <Setter.Value>
-                      <TranslateTransform Y="0" />
-                    </Setter.Value>
-                  </Setter>
+                  <Trigger.EnterActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="1" Duration="0:0:0.08" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.EnterActions>
+                  <Trigger.ExitActions>
+                    <BeginStoryboard>
+                      <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="border" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+                      </Storyboard>
+                    </BeginStoryboard>
+                  </Trigger.ExitActions>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                   <Setter TargetName="border" Value="{DynamicResource DisabledBgBrush}" Property="system:Border.Background" />
@@ -250,6 +277,8 @@
         <Setter Property="BorderThickness" Value="1.5" />
         <Setter Property="Background" Value="{DynamicResource CardBgBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="Template">
           <Setter.Value>
@@ -316,7 +345,7 @@
         </Setter>
       </Style>
       <Style x:Key="{x:Type system:TabItem}" TargetType="{x:Type system:TabItem}">
-        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Padding" Value="10,12" />
         <Setter Property="Margin" Value="0,0,0,4" />
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
@@ -324,13 +353,18 @@
         <Setter Property="Template">
           <Setter.Value>
             <system:ControlTemplate TargetType="{x:Type system:TabItem}">
-              <system:Border Name="border" Background="#00FFFFFF" CornerRadius="8" Padding="{TemplateBinding system:Control.Padding}" Margin="{TemplateBinding FrameworkElement.Margin}">
-                <system:ContentPresenter Name="contentPresenter" ContentSource="Header" HorizontalAlignment="Left" VerticalAlignment="Center" />
-              </system:Border>
+              <Grid Margin="{TemplateBinding FrameworkElement.Margin}">
+                <Rectangle Name="ActiveLine" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Left" Visibility="Collapsed" />
+                <system:Border Name="border" Background="#00FFFFFF" BorderBrush="#00FFFFFF" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding system:Control.Padding}" Margin="6,0,0,0">
+                  <system:ContentPresenter Name="contentPresenter" ContentSource="Header" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                </system:Border>
+              </Grid>
               <system:ControlTemplate.Triggers>
                 <Trigger Property="system:TabItem.IsSelected" Value="True">
-                  <Setter TargetName="border" Value="{DynamicResource PrimaryBrush}" Property="system:Border.Background" />
-                  <Setter Property="Foreground" Value="#FFFFFFFF" />
+                  <Setter TargetName="ActiveLine" Property="Visibility" Value="Visible" />
+                  <Setter TargetName="border" Value="{DynamicResource HoverBgBrush}" Property="system:Border.Background" />
+                  <Setter TargetName="border" Value="{DynamicResource BorderBrush}" Property="system:Border.BorderBrush" />
+                  <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                 </Trigger>
                 <MultiTrigger>
                   <MultiTrigger.Conditions>

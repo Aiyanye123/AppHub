@@ -1,37 +1,68 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Window x:Class="AppHub.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:AppHub.Views" Title="AppHub" Width="1080" Height="720" MinWidth="800" MinHeight="600" Icon="pack://application:,,,/icon/AppHub.ico" xmlns:apphub="clr-namespace:AppHub">
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="AppHub.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:views="clr-namespace:AppHub.Views" Title="AppHub" Width="1280" Height="760" MinWidth="1040" MinHeight="640" Icon="pack://application:,,,/icon/AppHub.ico" UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.Resources>
+    <Style x:Key="SidebarGlyph" TargetType="{x:Type TextBlock}">
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Width" Value="26" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Window.Resources>
   <Grid>
     <Grid Name="BackgroundImageLayer" Visibility="Collapsed" IsHitTestVisible="False" />
     <Border Name="BackgroundOverlayLayer" Visibility="Collapsed" Background="Transparent" IsHitTestVisible="False" />
     <Grid>
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="24*" MinWidth="180" MaxWidth="260" />
-        <ColumnDefinition Width="76*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
-      <Border Grid.Column="0" Background="{DynamicResource SidebarBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+
+      <Border x:Name="SidebarRail" Grid.Column="0" Width="216" Background="{DynamicResource SidebarBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" ClipToBounds="True" Panel.ZIndex="2">
         <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Margin="20,24,20,32">
-            <StackPanel Orientation="Horizontal">
-              <Border Width="40" Height="40" CornerRadius="10" Background="{DynamicResource PrimaryBrush}">
-                <TextBlock Text="A" FontSize="20" FontWeight="Bold" Foreground="#FFFFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <StackPanel x:Name="BrandContainer" DockPanel.Dock="Top" Margin="18,24,18,28">
+            <StackPanel x:Name="BrandRow" Orientation="Horizontal" HorizontalAlignment="Left">
+              <Border x:Name="BrandIconFrame" Width="44" Height="44" CornerRadius="12" Background="{DynamicResource HoverBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <Image Width="34" Height="34" Stretch="Uniform" Source="pack://application:,,,/icon/apphub.ico" />
               </Border>
-              <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+              <StackPanel x:Name="BrandCopy" Margin="12,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="AppHub" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" />
                 <TextBlock Text="应用总览启动器" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="0,2,0,0" />
               </StackPanel>
             </StackPanel>
           </StackPanel>
-          <TabControl Name="MainTabControl" TabStripPlacement="Left" Margin="12,0,12,24" Style="{StaticResource NavigationTabControl}">
-            <TabItem Header="📋  总览">
+
+          <Button x:Name="SidebarToggleButton" DockPanel.Dock="Bottom" Margin="18,0,18,20" Height="38" Padding="0" Style="{StaticResource SecondaryButton}" Click="OnToggleSidebarClick" ToolTip="收起侧边栏">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <TextBlock x:Name="SidebarToggleIcon" Text="&#xE76B;" Style="{StaticResource SidebarGlyph}" />
+              <TextBlock x:Name="SidebarToggleText" Text="收起侧边栏" Margin="8,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <TabControl Name="MainTabControl" TabStripPlacement="Left" Margin="10,0,10,24" Style="{StaticResource NavigationTabControl}">
+            <TabItem>
+              <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="&#xE8A9;" Style="{StaticResource SidebarGlyph}" />
+                  <TextBlock x:Name="OverviewNavText" Text="总览" Margin="12,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </TabItem.Header>
               <views:OverviewView />
             </TabItem>
-            <TabItem Header="⚙️  设置">
+            <TabItem>
+              <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="&#xE713;" Style="{StaticResource SidebarGlyph}" />
+                  <TextBlock x:Name="SettingsNavText" Text="设置" Margin="12,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </TabItem.Header>
               <views:SettingsView />
             </TabItem>
           </TabControl>
         </DockPanel>
       </Border>
-      <ContentPresenter Grid.Column="1" Margin="0" Content="{Binding SelectedContent, ElementName=MainTabControl}" />
+
+      <ContentPresenter Grid.Column="1" Panel.ZIndex="1" Content="{Binding SelectedContent, ElementName=MainTabControl}" />
     </Grid>
   </Grid>
 </Window>

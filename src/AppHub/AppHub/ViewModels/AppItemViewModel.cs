@@ -77,6 +77,22 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	public string GroupDisplayName => string.IsNullOrWhiteSpace(_groupName) ? "\u672a\u5206\u7ec4" : _groupName;
 
+	public string SourceTypeText => _model.SourceType switch
+	{
+		SourceType.Exe => "EXE",
+		SourceType.Shortcut => "LNK",
+		SourceType.Folder => "Folder",
+		_ => _model.SourceType.ToString()
+	};
+
+	public string TargetPath => _model.TargetPath;
+
+	public string WorkingDirectoryDisplay => string.IsNullOrWhiteSpace(_model.WorkingDirectory) ? "\u2014" : _model.WorkingDirectory;
+
+	public string ArgumentsDisplay => string.IsNullOrWhiteSpace(_model.Arguments) ? "\u2014" : _model.Arguments;
+
+	public string TrackProcessText => _model.TrackProcess ? "\u5df2\u542f\u7528" : "\u4e0d\u8ddf\u8e2a";
+
 	public bool IsPinned
 	{
 		get
@@ -112,6 +128,8 @@ public sealed class AppItemViewModel : ViewModelBase
 	public DateTime? LastLaunchTime => _lastLaunchTime;
 
 	public long LastLaunchTicks => _lastLaunchTime?.Ticks ?? long.MinValue;
+
+	public string LastLaunchDisplay => _lastLaunchTime.HasValue ? _lastLaunchTime.Value.ToString("yyyy/MM/dd HH:mm") : "\u2014";
 
 	public int SortIndex => _model.SortIndex;
 
@@ -246,6 +264,7 @@ public sealed class AppItemViewModel : ViewModelBase
 		OnPropertyChanged("IsPinned");
 		OnPropertyChanged("LastLaunchTime");
 		OnPropertyChanged("LastLaunchTicks");
+		OnPropertyChanged("LastLaunchDisplay");
 		OnPropertyChanged("SortIndex");
 		OnPropertyChanged("PinMenuText");
 		OnPropertyChanged("ShowPinBadge");
@@ -268,6 +287,7 @@ public sealed class AppItemViewModel : ViewModelBase
 				_lastLaunchTime = _model.LastLaunchTime;
 				OnPropertyChanged("LastLaunchTime");
 				OnPropertyChanged("LastLaunchTicks");
+				OnPropertyChanged("LastLaunchDisplay");
 				return;
 			}
 			ShowActionError("\u542f\u52a8\u5931\u8d25", result.ErrorMessage);

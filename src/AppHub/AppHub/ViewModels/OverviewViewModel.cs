@@ -56,6 +56,10 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private bool _refreshPending;
 
+	private AppItemViewModel? _selectedApp;
+
+	private bool _selectionDismissed;
+
 	public ObservableCollection<AppItemViewModel> Apps { get; } = new ObservableCollection<AppItemViewModel>();
 
 	public ObservableCollection<string> GroupOptions { get; } = new ObservableCollection<string>();
@@ -67,6 +71,8 @@ public sealed class OverviewViewModel : ViewModelBase
 	public IAsyncRelayCommand RefreshCommand { get; }
 
 	public IRelayCommand ToggleThemeCommand { get; }
+
+	public IRelayCommand ClearSelectionCommand { get; }
 
 	public string SearchQuery
 	{
@@ -167,6 +173,44 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	public bool IsEmpty => !_displayFilteredApps.Any();
 
+	public int TotalCount => _displayFilteredApps.Count;
+
+	public int RunningCount => _displayFilteredApps.Count((AppItemViewModel app) => app.IsRunning);
+
+	public int PinnedCount => _displayFilteredApps.Count((AppItemViewModel app) => app.IsPinned);
+
+	public string RefreshIntervalText
+	{
+		get
+		{
+			double seconds = Math.Clamp(_settings.RefreshIntervalMs, 1000, 60000) / 1000.0;
+			return seconds % 1 == 0 ? $"{seconds:0} s" : $"{seconds:0.#} s";
+		}
+	}
+
+	public string VisibleCountText => $"\u663e\u793a {_displayFilteredApps.Count} \u4e2a\u5e94\u7528";
+
+	public AppItemViewModel? SelectedApp
+	{
+		get
+		{
+			return _selectedApp;
+		}
+		set
+		{
+			if (SetProperty(ref _selectedApp, value, "SelectedApp"))
+			{
+				if (value != null)
+				{
+					_selectionDismissed = false;
+				}
+				OnPropertyChanged("HasSelectedApp");
+			}
+		}
+	}
+
+	public bool HasSelectedApp => SelectedApp != null;
+
 	public string ThemeToggleText => IsDarkMode ? "\u6d45\u8272\u6a21\u5f0f" : "\u6df1\u8272\u6a21\u5f0f";
 
 	public event Action<AppItemViewModel>? EditRequested;
@@ -190,6 +234,11 @@ public sealed class OverviewViewModel : ViewModelBase
 		ToggleThemeCommand = new RelayCommand(delegate
 		{
 			IsDarkMode = !IsDarkMode;
+		});
+		ClearSelectionCommand = new RelayCommand(delegate
+		{
+			_selectionDismissed = true;
+			SelectedApp = null;
 		});
 		RefreshCommand = new AsyncRelayCommand(async delegate
 		{
@@ -233,6 +282,11 @@ public sealed class OverviewViewModel : ViewModelBase
 		}
 	}
 
+	public void RefreshSummary()
+	{
+		NotifySummaryChanged();
+	}
+
 	public void CommitReorder()
 	{
 		if (CanReorder)
@@ -249,6 +303,7 @@ public sealed class OverviewViewModel : ViewModelBase
 		ApplyActiveGroupScopeToApps();
 		ApplyPinAvailabilityToApps();
 		RequestDisplayRefresh();
+		NotifySummaryChanged();
 	}
 
 	private AppItemViewModel CreateViewModel(ApplicationItem item)
@@ -269,6 +324,7 @@ public sealed class OverviewViewModel : ViewModelBase
 				RefreshGroupOptions();
 			}
 			RequestDisplayRefresh();
+			NotifySummaryChanged();
 		}
 	}
 
@@ -290,6 +346,21 @@ public sealed class OverviewViewModel : ViewModelBase
 		RebuildCollection(_displayFilteredApps, ordered);
 		OnPropertyChanged("CurrentView");
 		OnPropertyChanged("IsEmpty");
+		OnPropertyChanged("VisibleCountText");
+		NotifySummaryChanged();
+		SyncSelectionAfterRefresh();
+	}
+
+	private void SyncSelectionAfterRefresh()
+	{
+		if (SelectedApp != null && !_displayFilteredApps.Contains(SelectedApp))
+		{
+			SelectedApp = null;
+		}
+		if (SelectedApp == null && !_selectionDismissed)
+		{
+			SelectedApp = _displayFilteredApps.FirstOrDefault();
+		}
 	}
 
 	private IEnumerable<AppItemViewModel> OrderApps(IEnumerable<AppItemViewModel> source)
@@ -374,6 +445,15 @@ public sealed class OverviewViewModel : ViewModelBase
 		{
 			_appLookup[app.Id] = app;
 		}
+		NotifySummaryChanged();
+	}
+
+	private void NotifySummaryChanged()
+	{
+		OnPropertyChanged("TotalCount");
+		OnPropertyChanged("RunningCount");
+		OnPropertyChanged("PinnedCount");
+		OnPropertyChanged("RefreshIntervalText");
 	}
 
 	private void RefreshGroupOptions()

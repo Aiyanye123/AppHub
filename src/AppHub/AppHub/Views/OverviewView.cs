@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using AppHub.Infrastructure;
 using AppHub.Models;
 using AppHub.ViewModels;
@@ -17,6 +20,12 @@ namespace AppHub.Views;
 
 public partial class OverviewView : UserControl
 {
+	private const double InspectorExpandedWidth = 300;
+
+	private const double InspectorGapWidth = 16;
+
+	private const double ThemeThumbDarkOffset = 20;
+
 	private Point _dragStartPoint;
 
 	private AppItemViewModel? _dragItem;
@@ -27,6 +36,8 @@ public partial class OverviewView : UserControl
 
 	private string _dragOverPosition = string.Empty;
 
+	private bool _isLoaded;
+
 	private OverviewViewModel ViewModel => (OverviewViewModel)base.DataContext;
 
 	public OverviewView()
@@ -36,16 +47,118 @@ public partial class OverviewView : UserControl
 		{
 			vm.EditRequested += OnEditRequested;
 			vm.RemoveRequested += OnRemoveRequested;
+			vm.PropertyChanged += OnViewModelPropertyChanged;
 		}
 	}
 
 	private void OnLoaded(object sender, RoutedEventArgs e)
 	{
+		SetInspectorVisible(ViewModel.HasSelectedApp, animate: false);
+		SetThemeTogglePosition(ViewModel.IsDarkMode, animate: false);
+		_isLoaded = true;
 		AppServices.StatusScheduler.RequestImmediateRefresh();
+		ViewModel.RefreshSummary();
+		Dispatcher.BeginInvoke(new Action(delegate
+		{
+			SearchBox.Focus();
+			Keyboard.Focus(SearchBox);
+		}), DispatcherPriority.Input);
 	}
 
 	private void OnUnloaded(object sender, RoutedEventArgs e)
 	{
+		_isLoaded = false;
+	}
+
+	private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == nameof(OverviewViewModel.HasSelectedApp))
+		{
+			SetInspectorVisible(ViewModel.HasSelectedApp, _isLoaded);
+		}
+		else if (e.PropertyName == nameof(OverviewViewModel.IsDarkMode))
+		{
+			SetThemeTogglePosition(ViewModel.IsDarkMode, _isLoaded);
+		}
+	}
+
+	private void SetInspectorVisible(bool visible, bool animate)
+	{
+		if (visible)
+		{
+			InspectorPanel.Visibility = Visibility.Visible;
+			InspectorGap.Visibility = Visibility.Visible;
+		}
+		AnimateWidth(InspectorPanel, visible ? InspectorExpandedWidth : 0, animate);
+		AnimateWidth(InspectorGap, visible ? InspectorGapWidth : 0, animate);
+		AnimateOpacity(InspectorPanel, visible ? 1 : 0, animate);
+		if (!visible && animate)
+		{
+			DispatcherTimer timer = new DispatcherTimer
+			{
+				Interval = TimeSpan.FromMilliseconds(180)
+			};
+			timer.Tick += delegate
+			{
+				timer.Stop();
+				if (!ViewModel.HasSelectedApp)
+				{
+					InspectorPanel.Visibility = Visibility.Collapsed;
+					InspectorGap.Visibility = Visibility.Collapsed;
+				}
+			};
+			timer.Start();
+		}
+		else if (!visible)
+		{
+			InspectorPanel.Visibility = Visibility.Collapsed;
+			InspectorGap.Visibility = Visibility.Collapsed;
+		}
+	}
+
+	private void SetThemeTogglePosition(bool isDarkMode, bool animate)
+	{
+		double target = isDarkMode ? ThemeThumbDarkOffset : 0;
+		if (!animate)
+		{
+			ThemeToggleThumbTransform.BeginAnimation(TranslateTransform.XProperty, null);
+			ThemeToggleThumbTransform.X = target;
+			return;
+		}
+		ThemeToggleThumbTransform.BeginAnimation(TranslateTransform.XProperty, CreateAnimation(target, 500));
+	}
+
+	private static void AnimateWidth(FrameworkElement element, double target, bool animate)
+	{
+		if (!animate)
+		{
+			element.BeginAnimation(WidthProperty, null);
+			element.Width = target;
+			return;
+		}
+		element.BeginAnimation(WidthProperty, CreateAnimation(target, 180));
+	}
+
+	private static void AnimateOpacity(UIElement element, double target, bool animate)
+	{
+		if (!animate)
+		{
+			element.BeginAnimation(OpacityProperty, null);
+			element.Opacity = target;
+			return;
+		}
+		element.BeginAnimation(OpacityProperty, CreateAnimation(target, 140));
+	}
+
+	private static DoubleAnimation CreateAnimation(double target, int milliseconds)
+	{
+		return new DoubleAnimation(target, TimeSpan.FromMilliseconds(milliseconds))
+		{
+			EasingFunction = new CubicEase
+			{
+				EasingMode = EasingMode.EaseOut
+			}
+		};
 	}
 
 	private void OnAddMenuClick(object sender, RoutedEventArgs e)
@@ -72,6 +185,12 @@ public partial class OverviewView : UserControl
 				dialog.FileName
 			});
 		}
+	}
+
+	private void OnSearchHostMouseDown(object sender, MouseButtonEventArgs e)
+	{
+		SearchBox.Focus();
+		Keyboard.Focus(SearchBox);
 	}
 
 	private void OnAddFolderClick(object sender, RoutedEventArgs e)
@@ -121,6 +240,11 @@ public partial class OverviewView : UserControl
 		Point point = e.GetPosition(listBox);
 		_dragItem = GetItemFromPoint(listBox, point);
 		_dragSourceItem = GetItemContainerFromPoint(listBox, point);
+		if (_dragItem != null)
+		{
+			ViewModel.SelectedApp = _dragItem;
+			listBox.SelectedItem = _dragItem;
+		}
 	}
 
 	private void OnPreviewMouseMove(object sender, MouseEventArgs e)

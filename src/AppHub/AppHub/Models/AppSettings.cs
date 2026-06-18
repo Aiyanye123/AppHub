@@ -18,7 +18,7 @@ public sealed class AppSettings
 
 	public bool AlwaysOnTop { get; set; }
 
-	public bool IsDarkMode { get; set; }
+	public bool IsDarkMode { get; set; } = true;
 
 	public string LightBackgroundImagePath { get; set; } = string.Empty;
 

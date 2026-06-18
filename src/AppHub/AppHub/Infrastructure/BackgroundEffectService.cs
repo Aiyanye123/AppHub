@@ -23,9 +23,9 @@ public static class BackgroundEffectService
 		{
 			return;
 		}
-		ApplyPanelOpacity(settings);
 		BackgroundConfig config = GetActiveConfig(settings);
 		bool hasImageBackground = CanRender(config);
+		ApplyPanelOpacity(settings, hasImageBackground);
 		ApplyScrollBarStyle(settings.IsDarkMode, hasImageBackground);
 		if (!hasImageBackground)
 		{
@@ -147,15 +147,15 @@ public static class BackgroundEffectService
 		return (Color)ColorConverter.ConvertFromString("#FAFAFA");
 	}
 
-	private static void ApplyPanelOpacity(AppSettings settings)
+	private static void ApplyPanelOpacity(AppSettings settings, bool hasImageBackground)
 	{
 		ResourceDictionary? resources = Application.Current?.Resources;
 		if (resources == null)
 		{
 			return;
 		}
-		int sidebarOpacity = settings.IsDarkMode ? NormalizeOpacity(settings.DarkSidebarOpacity, fallback: 88) : NormalizeOpacity(settings.LightSidebarOpacity, fallback: 92);
-		int programOpacity = settings.IsDarkMode ? NormalizeOpacity(settings.DarkProgramOpacity, fallback: 88) : NormalizeOpacity(settings.LightProgramOpacity, fallback: 92);
+		int sidebarOpacity = hasImageBackground ? (settings.IsDarkMode ? NormalizeOpacity(settings.DarkSidebarOpacity, fallback: 88) : NormalizeOpacity(settings.LightSidebarOpacity, fallback: 92)) : 100;
+		int programOpacity = hasImageBackground ? (settings.IsDarkMode ? NormalizeOpacity(settings.DarkProgramOpacity, fallback: 88) : NormalizeOpacity(settings.LightProgramOpacity, fallback: 92)) : 100;
 		Color baseColor = ResolveCardBgColor(resources, settings.IsDarkMode);
 		SetBrushWithOpacity(resources, "SidebarBgBrush", baseColor, sidebarOpacity);
 		SetBrushWithOpacity(resources, "ProgramCardBgBrush", baseColor, programOpacity);
