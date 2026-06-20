@@ -41,6 +41,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
 	private double _logMaxSizeMb;
 
+	private bool _isLoggingEnabled;
+
 	private LaunchBehavior _launchBehavior;
 
 	private string _lightBackgroundImagePath = string.Empty;
@@ -75,6 +77,7 @@ public sealed class SettingsViewModel : ViewModelBase
 		_alwaysOnTop = _settings.AlwaysOnTop;
 		_logDirectory = _settings.LogDirectory;
 		_logMaxSizeMb = _settings.LogMaxSizeMb;
+		_isLoggingEnabled = _settings.IsLoggingEnabled;
 		_launchBehavior = _settings.LaunchBehavior;
 		_lightBackgroundImagePath = _settings.LightBackgroundImagePath ?? string.Empty;
 		_lightBackgroundStyle = NormalizeStyle(_settings.LightBackgroundStyle);
@@ -238,6 +241,23 @@ public sealed class SettingsViewModel : ViewModelBase
 				int normalized = value < 0.0 ? 0 : (int)value;
 				_settings.LogMaxSizeMb = normalized;
 				AppServices.Logger.SetLogMaxSizeBytes((long)normalized * 1024L * 1024);
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+			}
+		}
+	}
+
+	public bool IsLoggingEnabled
+	{
+		get
+		{
+			return _isLoggingEnabled;
+		}
+		set
+		{
+			if (SetProperty(ref _isLoggingEnabled, value, "IsLoggingEnabled"))
+			{
+				_settings.IsLoggingEnabled = value;
+				AppServices.Logger.SetEnabled(value);
 				AppServices.Storage.ScheduleSave(AppServices.Config);
 			}
 		}

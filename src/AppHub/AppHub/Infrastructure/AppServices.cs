@@ -41,6 +41,7 @@ public static class AppServices
 				Storage.Save(Config);
 			}
 			Logger = new AppLogger(Config.Settings.LogDirectory);
+			Logger.SetEnabled(Config.Settings.IsLoggingEnabled);
 			Logger.SetLogMaxSizeBytes((long)Config.Settings.LogMaxSizeMb * 1024L * 1024);
 			Catalog = new AppCatalogService(Storage, Config, Logger);
 			IconService = new IconService(Logger);

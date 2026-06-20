@@ -14,6 +14,8 @@ public sealed class AppLogger
 
 	private long _maxLogSizeBytes;
 
+	private bool _isEnabled = true;
+
 	public AppLogger(string logDirectory)
 	{
 		_logDirectory = logDirectory;
@@ -27,6 +29,11 @@ public sealed class AppLogger
 	public void SetLogMaxSizeBytes(long maxLogSizeBytes)
 	{
 		_maxLogSizeBytes = maxLogSizeBytes;
+	}
+
+	public void SetEnabled(bool isEnabled)
+	{
+		_isEnabled = isEnabled;
 	}
 
 	public void Debug(string message)
@@ -83,6 +90,10 @@ public sealed class AppLogger
 
 	private void Log(LogLevel level, string message, Exception? ex = null)
 	{
+		if (!_isEnabled)
+		{
+			return;
+		}
 		DateTime timestamp = DateTime.Now;
 		string line = $"[{timestamp:HH:mm:ss}] [{level}] {message}";
 		if (ex != null)

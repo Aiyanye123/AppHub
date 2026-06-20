@@ -702,7 +702,7 @@ public sealed class TrayIconService : IDisposable
 		}
 	}
 
-	private void Restore()
+	public void Restore()
 	{
 		_window.Show();
 		_window.WindowState = WindowState.Normal;

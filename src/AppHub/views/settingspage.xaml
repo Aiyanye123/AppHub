@@ -264,6 +264,7 @@
               </StackPanel>
             </Grid>
             <TextBlock Text="0 表示不限制，超出后自动删除今日日志文件" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" Margin="30,6,0,0" />
+            <CheckBox Content="启用日志" IsChecked="{Binding IsLoggingEnabled}" Margin="0,12,0,0" />
             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
               <Button Content="选择目录" Click="OnBrowseLogDirectory" />
               <Button Margin="10,0,0,0" Content="打开日志" Style="{StaticResource SecondaryButton}" Click="OnOpenLogs" />

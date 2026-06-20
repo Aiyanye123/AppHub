@@ -16,6 +16,8 @@ public sealed class AppSettings
 
 	public int LogMaxSizeMb { get; set; }
 
+	public bool IsLoggingEnabled { get; set; } = true;
+
 	public bool AlwaysOnTop { get; set; }
 
 	public bool IsDarkMode { get; set; } = true;
