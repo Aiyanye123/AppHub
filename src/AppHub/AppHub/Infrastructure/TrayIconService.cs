@@ -44,6 +44,8 @@ public sealed class TrayIconService : IDisposable
 
 	private readonly Dictionary<Guid, CachedAppIcon> _appIconCache = new Dictionary<Guid, CachedAppIcon>();
 
+	private readonly Dictionary<Guid, bool> _latestRunningStates = new Dictionary<Guid, bool>();
+
 	private readonly List<Image> _menuScopedImages = new List<Image>();
 
 	private readonly Window _window;
@@ -62,6 +64,8 @@ public sealed class TrayIconService : IDisposable
 
 	private bool _keepMenuOpenOnNextItemClick;
 
+	private bool _menuRefreshScheduled;
+
 	private int _menuAnimationToken;
 
 	public event EventHandler<bool>? BackgroundModeChanged;
@@ -78,6 +82,7 @@ public sealed class TrayIconService : IDisposable
 			ContextMenuStrip = _menu
 		};
 		_notifyIcon.MouseClick += OnNotifyIconMouseClick;
+		AppServices.ProcessService.ProcessStatusesChanged += OnProcessStatusesChanged;
 		_window.StateChanged += OnWindowStateChanged;
 		_window.Closed += delegate
 		{
@@ -97,6 +102,7 @@ public sealed class TrayIconService : IDisposable
 		};
 		contextMenuStrip.Opening += OnMenuOpening;
 		contextMenuStrip.Closing += OnMenuClosing;
+		contextMenuStrip.Closed += OnMenuClosed;
 		RefreshMenu(contextMenuStrip);
 		return contextMenuStrip;
 	}
@@ -105,14 +111,15 @@ public sealed class TrayIconService : IDisposable
 	{
 		try
 		{
-			if (_menuNeedsRefresh)
+			// Opening runs on the WinForms message loop. Keep it free of process scans,
+			// file-system access and icon extraction so the tray menu appears immediately.
+			ApplyMenuAppearance(_menu);
+			UpdateVisibleMenuStatuses();
+			if (!_showRunningOnlyApps)
 			{
-				RefreshMenu(_menu);
+				_menuNeedsRefresh = false;
 			}
-			else
-			{
-				ApplyMenuAppearance(_menu);
-			}
+			AppServices.StatusScheduler.RequestImmediateRefresh();
 		}
 		catch (Exception ex)
 		{
@@ -127,6 +134,127 @@ public sealed class TrayIconService : IDisposable
 			e.Cancel = true;
 		}
 		_keepMenuOpenOnNextItemClick = false;
+	}
+
+	private void OnMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
+	{
+		if (_menuNeedsRefresh)
+		{
+			ScheduleMenuRefresh();
+		}
+	}
+
+	private void OnProcessStatusesChanged(object? sender, Services.ProcessStatusesChangedEventArgs e)
+	{
+		bool changed = false;
+		foreach (KeyValuePair<Guid, ProcessStatus> pair in e.Statuses)
+		{
+			bool isRunning = pair.Value.IsRunning;
+			if (!_latestRunningStates.TryGetValue(pair.Key, out bool previous) || previous != isRunning)
+			{
+				_latestRunningStates[pair.Key] = isRunning;
+				changed = true;
+			}
+		}
+
+		if (!changed)
+		{
+			return;
+		}
+
+		_menuNeedsRefresh = true;
+		if (_menu.Visible)
+		{
+			UpdateVisibleMenuStatuses();
+			if (!_showRunningOnlyApps)
+			{
+				_menuNeedsRefresh = false;
+			}
+		}
+		else if (!_menu.Visible)
+		{
+			ScheduleMenuRefresh();
+		}
+	}
+
+	private void UpdateVisibleMenuStatuses()
+	{
+		foreach (ToolStripItem item in _menu.Items)
+		{
+			if (item is not ToolStripMenuItem groupItem || groupItem.Tag is not ApplicationGroupMenu group)
+			{
+				continue;
+			}
+
+			int runningCount = group.Apps.Count(app => IsAppRunning(app.Id));
+			groupItem.Text = $"{group.Name} ({runningCount}/{group.Apps.Count})";
+			groupItem.Image = runningCount > 0 ? RunningDot : StoppedDot;
+
+			foreach (ToolStripItem dropDownItem in groupItem.DropDownItems)
+			{
+				if (dropDownItem is not ToolStripMenuItem appItem || appItem.Tag is not TrayAppMenuState state)
+				{
+					continue;
+				}
+
+				bool isRunning = IsAppRunning(state.App.Id);
+				if (state.IsRunning == isRunning)
+				{
+					continue;
+				}
+
+				Image? oldImage = appItem.Image;
+				Image newImage = CreateAppStatusIcon(state.App, isRunning);
+				appItem.Image = newImage;
+				appItem.ShortcutKeyDisplayString = isRunning ? "\u5173\u95ed" : "\u542f\u52a8";
+				state.IsRunning = isRunning;
+				_menuScopedImages.Add(newImage);
+				if (oldImage != null && _menuScopedImages.Remove(oldImage))
+				{
+					DisposeImagesAfterPendingPaint(appItem.Owner ?? _menu, new[] { oldImage });
+				}
+			}
+		}
+	}
+
+	private bool IsAppRunning(Guid appId)
+	{
+		return _latestRunningStates.TryGetValue(appId, out bool isRunning) && isRunning;
+	}
+
+	private void ScheduleMenuRefresh()
+	{
+		if (_menuRefreshScheduled || _menu.IsDisposed)
+		{
+			return;
+		}
+
+		_menuRefreshScheduled = true;
+		if (!_menu.IsHandleCreated)
+		{
+			_menuRefreshScheduled = false;
+			if (_menuNeedsRefresh && !_menu.Visible)
+			{
+				RefreshMenu(_menu);
+			}
+			return;
+		}
+
+		try
+		{
+			_menu.BeginInvoke((Action)delegate
+			{
+				_menuRefreshScheduled = false;
+				if (_menuNeedsRefresh && !_menu.Visible && !_menu.IsDisposed)
+				{
+					RefreshMenu(_menu);
+				}
+			});
+		}
+		catch (InvalidOperationException)
+		{
+			_menuRefreshScheduled = false;
+		}
 	}
 
 	private void RefreshMenu(ContextMenuStrip menu, bool keepBottomEdge = false, bool animateVerticalShift = false)
@@ -173,11 +301,12 @@ public sealed class TrayIconService : IDisposable
 
 	private void RebuildMenuItems(ContextMenuStrip menu)
 	{
+		List<Image> imagesToDispose = _menuScopedImages.ToList();
+		_menuScopedImages.Clear();
 		menu.SuspendLayout();
 		try
 		{
 			menu.Items.Clear();
-			DisposeMenuScopedImages();
 
 			ToolStripMenuItem runningOnlyItem = CreateMenuItem("\u4ec5\u663e\u793a\u8fd0\u884c\u4e2d\u5e94\u7528");
 			runningOnlyItem.CheckOnClick = true;
@@ -216,12 +345,15 @@ public sealed class TrayIconService : IDisposable
 						int runningCount = group.Apps.Count((ApplicationItem app) => runningStates.TryGetValue(app.Id, out bool isRunning) && isRunning);
 						ToolStripMenuItem groupItem = CreateMenuItem($"{group.Name} ({runningCount}/{group.Apps.Count})");
 						groupItem.Image = runningCount > 0 ? RunningDot : StoppedDot;
+						groupItem.Tag = group;
 						AttachDropDownSnap(groupItem);
 
 						foreach (ApplicationItem app in group.Apps)
 						{
 							bool isRunning2 = runningStates.TryGetValue(app.Id, out bool value) && value;
+							TrayAppMenuState state = new TrayAppMenuState(app, isRunning2);
 							ToolStripMenuItem appItem = CreateMenuItem(ResolveTrayAppText(app));
+							appItem.Tag = state;
 							Image appStatusWithIcon = CreateAppStatusIcon(app, isRunning2);
 							appItem.Image = appStatusWithIcon;
 							_menuScopedImages.Add(appStatusWithIcon);
@@ -229,7 +361,7 @@ public sealed class TrayIconService : IDisposable
 							appItem.ShortcutKeyDisplayString = isRunning2 ? "\u5173\u95ed" : "\u542f\u52a8";
 							appItem.Click += delegate
 							{
-								ToggleAppFromTray(app, isRunning2);
+								ToggleAppFromTray(state.App, state.IsRunning);
 							};
 							groupItem.DropDownItems.Add(appItem);
 						}
@@ -281,6 +413,33 @@ public sealed class TrayIconService : IDisposable
 		finally
 		{
 			menu.ResumeLayout(performLayout: false);
+			DisposeImagesAfterPendingPaint(menu, imagesToDispose);
+		}
+	}
+
+	private static void DisposeImagesAfterPendingPaint(ToolStrip menu, IReadOnlyList<Image> images)
+	{
+		if (images.Count == 0)
+		{
+			return;
+		}
+
+		try
+		{
+			menu.BeginInvoke((Action)delegate
+			{
+				foreach (Image image in images)
+				{
+					image.Dispose();
+				}
+			});
+		}
+		catch (InvalidOperationException)
+		{
+			foreach (Image image in images)
+			{
+				image.Dispose();
+			}
 		}
 	}
 
@@ -414,12 +573,12 @@ public sealed class TrayIconService : IDisposable
 		return result;
 	}
 
-	private static Dictionary<Guid, bool> BuildRunningStates(IReadOnlyList<ApplicationItem> apps)
+	private Dictionary<Guid, bool> BuildRunningStates(IReadOnlyList<ApplicationItem> apps)
 	{
 		Dictionary<Guid, bool> result = new Dictionary<Guid, bool>(apps.Count);
 		foreach (ApplicationItem app in apps)
 		{
-			result[app.Id] = AppServices.ProcessService.GetRunningStatus(app.Id).IsRunning;
+			result[app.Id] = _latestRunningStates.TryGetValue(app.Id, out bool isRunning) && isRunning;
 		}
 		return result;
 	}
@@ -694,6 +853,7 @@ public sealed class TrayIconService : IDisposable
 		_window.Hide();
 		_notifyIcon.Visible = true;
 		_menuNeedsRefresh = true;
+		RefreshMenu(_menu);
 		SetBackgroundMode(isBackground: true);
 		if (!_balloonShown)
 		{
@@ -736,8 +896,10 @@ public sealed class TrayIconService : IDisposable
 		SetBackgroundMode(isBackground: false);
 		_notifyIcon.Visible = false;
 		_notifyIcon.MouseClick -= OnNotifyIconMouseClick;
+		AppServices.ProcessService.ProcessStatusesChanged -= OnProcessStatusesChanged;
 		_menu.Opening -= OnMenuOpening;
 		_menu.Closing -= OnMenuClosing;
+		_menu.Closed -= OnMenuClosed;
 		DisposeMenuScopedImages();
 		foreach (CachedAppIcon icon in _appIconCache.Values)
 		{
@@ -791,6 +953,19 @@ public sealed class TrayIconService : IDisposable
 	}
 
 	private sealed record ApplicationGroupMenu(string Name, IReadOnlyList<ApplicationItem> Apps);
+
+	private sealed class TrayAppMenuState
+	{
+		public ApplicationItem App { get; }
+
+		public bool IsRunning { get; set; }
+
+		public TrayAppMenuState(ApplicationItem app, bool isRunning)
+		{
+			App = app;
+			IsRunning = isRunning;
+		}
+	}
 
 	private sealed record CachedAppIcon(string Signature, Image Icon);
 
@@ -918,7 +1093,7 @@ public sealed class TrayIconService : IDisposable
 			int horizontalInset = MenuItemHorizontalInset;
 			int verticalInset = MenuItemVerticalInset;
 
-			Rectangle bounds = e.Item.Bounds;
+			Rectangle bounds = new Rectangle(System.Drawing.Point.Empty, e.Item.Size);
 			Rectangle fillRect = Rectangle.Inflate(bounds, -horizontalInset, -verticalInset);
 			if (fillRect.Width <= 0 || fillRect.Height <= 0)
 			{
