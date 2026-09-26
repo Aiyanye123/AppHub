@@ -235,6 +235,12 @@ public partial class OverviewView : UserControl
 
 	private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
 	{
+		if (IsInsideButton(e.OriginalSource as DependencyObject))
+		{
+			_dragItem = null;
+			_dragSourceItem = null;
+			return;
+		}
 		_dragStartPoint = e.GetPosition(this);
 		ListBox listBox = (ListBox)sender;
 		Point point = e.GetPosition(listBox);
@@ -245,6 +251,15 @@ public partial class OverviewView : UserControl
 			ViewModel.SelectedApp = _dragItem;
 			listBox.SelectedItem = _dragItem;
 		}
+	}
+
+	private static bool IsInsideButton(DependencyObject? element)
+	{
+		while (element != null && element is not Button)
+		{
+			element = VisualTreeHelper.GetParent(element);
+		}
+		return element is Button;
 	}
 
 	private void OnPreviewMouseMove(object sender, MouseEventArgs e)

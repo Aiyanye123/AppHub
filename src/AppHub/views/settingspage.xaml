@@ -244,6 +244,19 @@
             </Grid>
           </StackPanel>
         </Border>
+        <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" Margin="0,0,0,16" HorizontalAlignment="Stretch">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+              <TextBlock Text="💾" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock Text="配置备份" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" />
+            </StackPanel>
+            <TextBlock Text="导出或恢复应用列表、分组、启动记录和设置。" FontSize="12" Foreground="{DynamicResource SubtleTextBrush}" />
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+              <Button Content="导出配置" Click="OnExportConfig" />
+              <Button Margin="10,0,0,0" Content="导入配置" Style="{StaticResource SecondaryButton}" Click="OnImportConfig" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
         <Border Background="{DynamicResource ProgramCardBgBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="24" HorizontalAlignment="Stretch">
           <StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,20">

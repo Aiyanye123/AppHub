@@ -120,7 +120,7 @@ public sealed class AppItemViewModel : ViewModelBase
 			if (SetProperty(ref _canTogglePin, value, "CanTogglePin"))
 			{
 				OnPropertyChanged("ShowPinBadge");
-				NotifyCommandStateChanged();
+				TogglePinCommand.NotifyCanExecuteChanged();
 			}
 		}
 	}
@@ -243,8 +243,13 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	public void UpdateStatus(ProcessStatus status)
 	{
+		if (IsRunning == status.IsRunning)
+		{
+			return;
+		}
 		IsRunning = status.IsRunning;
-		NotifyCommandStateChanged();
+		CloseCommand.NotifyCanExecuteChanged();
+		ForceCloseCommand.NotifyCanExecuteChanged();
 	}
 
 	public void RefreshIcon()

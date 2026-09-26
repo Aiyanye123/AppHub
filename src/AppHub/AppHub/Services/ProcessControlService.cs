@@ -66,7 +66,22 @@ public sealed class ProcessControlService
 		return BuildStatus(appId, app, snapshot);
 	}
 
-	public async Task RefreshAllStatusAsync()
+	public IReadOnlyDictionary<Guid, ProcessStatus> GetRunningStatuses(IReadOnlyList<ApplicationItem> apps)
+	{
+		Dictionary<Guid, ProcessStatus> statuses = new Dictionary<Guid, ProcessStatus>(apps.Count);
+		if (apps.Count == 0)
+		{
+			return statuses;
+		}
+		ProcessSnapshot snapshot = CaptureProcessSnapshot();
+		foreach (ApplicationItem app in apps)
+		{
+			statuses[app.Id] = BuildStatus(app.Id, app, snapshot);
+		}
+		return statuses;
+	}
+
+	public async Task RefreshAllStatusAsync(CancellationToken cancellationToken = default)
 	{
 		if (Interlocked.Exchange(ref _refreshing, 1) == 1)
 		{
@@ -74,23 +89,14 @@ public sealed class ProcessControlService
 		}
 		try
 		{
-			List<(Guid Id, ProcessStatus Status)> snapshots = await Task.Run(delegate
-			{
-				List<(Guid, ProcessStatus)> list = new List<(Guid, ProcessStatus)>();
-				IReadOnlyList<ApplicationItem> apps = _catalog.GetAllApps();
-				ProcessSnapshot processSnapshot = CaptureProcessSnapshot();
-				foreach (ApplicationItem current in apps)
-				{
-					list.Add((current.Id, BuildStatus(current.Id, current, processSnapshot)));
-				}
-				return list;
-			});
+			IReadOnlyDictionary<Guid, ProcessStatus> snapshots = await Task.Run(
+				() => GetRunningStatuses(_catalog.GetAllApps()), cancellationToken);
+			cancellationToken.ThrowIfCancellationRequested();
 			Dispatcher dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
-			dispatcher.Invoke((Action)delegate
+			await dispatcher.InvokeAsync((Action)delegate
 			{
-				Dictionary<Guid, ProcessStatus> batch = snapshots.ToDictionary(item => item.Id, item => item.Status);
-				this.ProcessStatusesChanged?.Invoke(this, new ProcessStatusesChangedEventArgs(batch));
-			});
+				this.ProcessStatusesChanged?.Invoke(this, new ProcessStatusesChangedEventArgs(snapshots));
+			}, DispatcherPriority.Normal, cancellationToken);
 		}
 		finally
 		{

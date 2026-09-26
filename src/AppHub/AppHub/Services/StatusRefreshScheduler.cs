@@ -32,7 +32,11 @@ public sealed class StatusRefreshScheduler : IDisposable
 
 	private Task? _worker;
 
+	private Task _stoppingWorkers = Task.CompletedTask;
+
 	private bool _isBackground;
+
+	private bool _disposed;
 
 	public StatusRefreshScheduler(ProcessControlService processService, AppSettings settings, AppLogger logger)
 	{
@@ -45,43 +49,55 @@ public sealed class StatusRefreshScheduler : IDisposable
 	{
 		lock (_sync)
 		{
+			ObjectDisposedException.ThrowIf(_disposed, this);
 			if (_worker != null)
 			{
 				return;
 			}
 			_cts = new CancellationTokenSource();
-			_worker = Task.Run(() => RunAsync(_cts.Token));
+			CancellationToken token = _cts.Token;
+			_worker = Task.Run(() => RunAsync(token));
 		}
 		RequestImmediateRefresh();
 	}
 
 	public void Stop()
 	{
+		StopCore();
+	}
+
+	private Task StopCore()
+	{
 		CancellationTokenSource? cts;
 		Task? worker;
+		Task completion;
 		lock (_sync)
 		{
 			cts = _cts;
 			worker = _worker;
 			_cts = null;
 			_worker = null;
-		}
-		if (cts == null)
-		{
-			return;
-		}
-		cts.Cancel();
-		RequestImmediateRefresh();
-		try
-		{
-			worker?.Wait(TimeSpan.FromSeconds(2.0));
-		}
-		catch (AggregateException ex) when (AreCancellationExceptions(ex))
-		{
-		}
-		finally
-		{
-			cts.Dispose();
+			if (cts == null || worker == null)
+			{
+				return _stoppingWorkers;
+			}
+			completion = worker.ContinueWith(completed =>
+			{
+				try
+				{
+					if (completed.IsFaulted)
+					{
+						_logger.Warn($"Status refresh worker failed: {completed.Exception?.GetBaseException().Message}");
+					}
+				}
+				finally
+				{
+					cts.Dispose();
+				}
+			}, TaskScheduler.Default);
+			_stoppingWorkers = Task.WhenAll(_stoppingWorkers, completion);
+			cts.Cancel();
+			return _stoppingWorkers;
 		}
 	}
 
@@ -106,12 +122,12 @@ public sealed class StatusRefreshScheduler : IDisposable
 	{
 		lock (_sync)
 		{
-			if (_worker == null)
+			if (_disposed || _worker == null)
 			{
 				return;
 			}
+			_refreshSignal.Release();
 		}
-		_refreshSignal.Release();
 	}
 
 	private async Task RunAsync(CancellationToken token)
@@ -121,11 +137,9 @@ public sealed class StatusRefreshScheduler : IDisposable
 			TimeSpan interval = GetCurrentInterval();
 			try
 			{
-				Task delayTask = Task.Delay(interval, token);
-				Task signalTask = _refreshSignal.WaitAsync(token);
-				await Task.WhenAny(delayTask, signalTask);
+				await _refreshSignal.WaitAsync(interval, token);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (token.IsCancellationRequested)
 			{
 				break;
 			}
@@ -135,7 +149,11 @@ public sealed class StatusRefreshScheduler : IDisposable
 			}
 			try
 			{
-				await _processService.RefreshAllStatusAsync();
+				await _processService.RefreshAllStatusAsync(token);
+			}
+			catch (OperationCanceledException) when (token.IsCancellationRequested)
+			{
+				break;
 			}
 			catch (Exception ex)
 			{
@@ -166,21 +184,17 @@ public sealed class StatusRefreshScheduler : IDisposable
 		return Math.Clamp(value, min, max);
 	}
 
-	private static bool AreCancellationExceptions(AggregateException ex)
-	{
-		foreach (Exception inner in ex.InnerExceptions)
-		{
-			if (inner is not TaskCanceledException && inner is not OperationCanceledException)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
 	public void Dispose()
 	{
-		Stop();
-		_refreshSignal.Dispose();
+		lock (_sync)
+		{
+			if (_disposed)
+			{
+				return;
+			}
+			_disposed = true;
+		}
+		Task completion = StopCore();
+		_ = completion.ContinueWith(_ => _refreshSignal.Dispose(), TaskScheduler.Default);
 	}
 }

@@ -217,8 +217,17 @@
     </Grid>
 
     <Border Grid.Row="1" Margin="32,20,32,0" Padding="14" Style="{StaticResource PanelBorder}">
-      <DockPanel LastChildFill="False">
-        <Grid Name="SearchHost" Width="320" Height="40" DockPanel.Dock="Left" Margin="0,0,10,0" MouseDown="OnSearchHostMouseDown">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid Name="SearchHost" Grid.Column="0" Height="40" Margin="0,0,10,0" MouseDown="OnSearchHostMouseDown">
           <Border Name="SearchFrame" Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1.5" CornerRadius="8">
             <Border.Style>
               <Style TargetType="{x:Type Border}">
@@ -249,10 +258,10 @@
             </FrameworkElement.Style>
           </TextBlock>
         </Grid>
-        <ComboBox DockPanel.Dock="Left" Width="148" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding GroupOptions}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" />
-        <ComboBox DockPanel.Dock="Left" Width="116" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
-        <ComboBox DockPanel.Dock="Left" Width="88" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortDirectionOptions}" SelectedItem="{Binding SelectedSortDirection, Mode=TwoWay}" Visibility="{Binding IsSortDirectionVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
-        <Button DockPanel.Dock="Left" Margin="0,0,10,0" Height="40" MinWidth="104" Padding="16,8" Click="OnAddMenuClick">
+        <ComboBox Grid.Column="1" Width="148" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding GroupOptions}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" />
+        <ComboBox Grid.Column="2" Width="116" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort, Mode=TwoWay}" />
+        <ComboBox Grid.Column="3" Width="88" Margin="0,0,10,0" Style="{StaticResource GroupFilterComboBox}" ItemsSource="{Binding SortDirectionOptions}" SelectedItem="{Binding SelectedSortDirection, Mode=TwoWay}" Visibility="{Binding IsSortDirectionVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+        <Button Grid.Column="4" Margin="0,0,10,0" Height="40" MinWidth="104" Padding="16,8" Click="OnAddMenuClick">
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="&#xE710;" Style="{StaticResource IconGlyph}" Margin="0,0,8,0" />
             <TextBlock Text="添加" />
@@ -285,13 +294,13 @@
             </ContextMenu>
           </Button.ContextMenu>
         </Button>
-        <Button DockPanel.Dock="Left" Margin="0,0,10,0" Style="{StaticResource SecondaryButton}" Height="40" MinWidth="104" Padding="14,8" Command="{Binding RefreshCommand}">
+        <Button Grid.Column="5" Margin="0,0,10,0" Style="{StaticResource SecondaryButton}" Height="40" MinWidth="104" Padding="14,8" Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="&#xE72C;" Style="{StaticResource IconGlyph}" Margin="0,0,8,0" />
             <TextBlock Text="刷新状态" />
           </StackPanel>
         </Button>
-        <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" Height="40" MinWidth="160" Padding="12,8" Command="{Binding ToggleThemeCommand}">
+        <Button Grid.Column="6" Style="{StaticResource SecondaryButton}" Height="40" MinWidth="160" Padding="12,8" Command="{Binding ToggleThemeCommand}">
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="浅色" VerticalAlignment="Center" />
             <Border Width="42" Height="22" CornerRadius="11" Margin="10,0" Background="{DynamicResource HoverBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -304,7 +313,7 @@
             <TextBlock Text="深色" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-      </DockPanel>
+      </Grid>
     </Border>
 
     <Grid Grid.Row="2" Margin="32,16,32,24">

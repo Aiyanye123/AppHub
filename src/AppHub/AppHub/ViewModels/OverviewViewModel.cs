@@ -56,6 +56,8 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private bool _refreshPending;
 
+	private bool _appsCollectionChangedDuringDefer;
+
 	private AppItemViewModel? _selectedApp;
 
 	private bool _selectionDismissed;
@@ -260,14 +262,11 @@ public sealed class OverviewViewModel : ViewModelBase
 		using (DeferRefresh())
 		{
 			Apps.Clear();
-			_appLookup.Clear();
 			foreach (ApplicationItem app in _catalog.GetAllApps())
 			{
 				AppItemViewModel vm = CreateViewModel(app);
 				Apps.Add(vm);
-				_appLookup[vm.Id] = vm;
 			}
-			ApplyActiveGroupScopeToApps();
 		}
 	}
 
@@ -276,9 +275,7 @@ public sealed class OverviewViewModel : ViewModelBase
 		using (DeferRefresh())
 		{
 			AppItemViewModel vm = CreateViewModel(item);
-			vm.SetActiveGroupScope(GetActiveGroupScope());
 			Apps.Add(vm);
-			_appLookup[vm.Id] = vm;
 		}
 	}
 
@@ -298,12 +295,22 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private void OnAppsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
 	{
+		if (_deferRefreshDepth > 0)
+		{
+			_appsCollectionChangedDuringDefer = true;
+			_refreshPending = true;
+			return;
+		}
+		RefreshAppsCollectionState();
+	}
+
+	private void RefreshAppsCollectionState()
+	{
 		RebuildAppLookup();
 		RefreshGroupOptions();
 		ApplyActiveGroupScopeToApps();
 		ApplyPinAvailabilityToApps();
 		RequestDisplayRefresh();
-		NotifySummaryChanged();
 	}
 
 	private AppItemViewModel CreateViewModel(ApplicationItem item)
@@ -324,7 +331,6 @@ public sealed class OverviewViewModel : ViewModelBase
 				RefreshGroupOptions();
 			}
 			RequestDisplayRefresh();
-			NotifySummaryChanged();
 		}
 	}
 
@@ -342,11 +348,19 @@ public sealed class OverviewViewModel : ViewModelBase
 	{
 		IEnumerable<AppItemViewModel> filterBase = IsAllGroupsSelected ? Apps : Apps.Where((AppItemViewModel app) => string.Equals(NormalizeGroupName(app.GroupName), NormalizeGroupName(SelectedGroup), StringComparison.OrdinalIgnoreCase));
 		IEnumerable<AppItemViewModel> searched = string.IsNullOrWhiteSpace(SearchQuery) ? filterBase : filterBase.Where(MatchesSearch);
-		IEnumerable<AppItemViewModel> ordered = OrderApps(searched);
-		RebuildCollection(_displayFilteredApps, ordered);
-		OnPropertyChanged("CurrentView");
-		OnPropertyChanged("IsEmpty");
-		OnPropertyChanged("VisibleCountText");
+		List<AppItemViewModel> ordered = OrderApps(searched).ToList();
+		bool displayChanged = ordered.Count != _displayFilteredApps.Count;
+		for (int i = 0; !displayChanged && i < ordered.Count; i++)
+		{
+			displayChanged = !ReferenceEquals(ordered[i], _displayFilteredApps[i]);
+		}
+		if (displayChanged)
+		{
+			RebuildCollection(_displayFilteredApps, ordered);
+			OnPropertyChanged("CurrentView");
+			OnPropertyChanged("IsEmpty");
+			OnPropertyChanged("VisibleCountText");
+		}
 		NotifySummaryChanged();
 		SyncSelectionAfterRefresh();
 	}
@@ -430,7 +444,18 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private void EndDeferredRefresh()
 	{
-		_deferRefreshDepth--;
+		try
+		{
+			if (_deferRefreshDepth == 1 && _appsCollectionChangedDuringDefer)
+			{
+				_appsCollectionChangedDuringDefer = false;
+				RefreshAppsCollectionState();
+			}
+		}
+		finally
+		{
+			_deferRefreshDepth--;
+		}
 		if (_deferRefreshDepth == 0 && _refreshPending)
 		{
 			_refreshPending = false;
@@ -445,7 +470,6 @@ public sealed class OverviewViewModel : ViewModelBase
 		{
 			_appLookup[app.Id] = app;
 		}
-		NotifySummaryChanged();
 	}
 
 	private void NotifySummaryChanged()
@@ -491,7 +515,6 @@ public sealed class OverviewViewModel : ViewModelBase
 		bool isPinned = !vm.IsPinned;
 		_catalog.SetPinned(vm.Id, scope, isPinned);
 		vm.SetPinnedForActiveGroup(isPinned);
-		RequestDisplayRefresh();
 	}
 
 	private void OnEditRequested(AppItemViewModel vm)

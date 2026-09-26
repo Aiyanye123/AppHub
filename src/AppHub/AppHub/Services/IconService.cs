@@ -3,6 +3,8 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -42,7 +44,7 @@ public sealed class IconService
 		{
 			return GetDefaultFolderIcon();
 		}
-		string cachePath = GetCachePath(app.Id);
+		string cachePath = GetCachePath(app.Id, app.TargetPath);
 		if (File.Exists(cachePath))
 		{
 			return LoadBitmap(cachePath);
@@ -97,9 +99,10 @@ public sealed class IconService
 		}
 	}
 
-	private static string GetCachePath(Guid id)
+	private static string GetCachePath(Guid id, string targetPath)
 	{
-		return Path.Combine(PathHelper.GetIconCacheDirectory(), $"{id}.png");
+		string sourceKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(targetPath)));
+		return Path.Combine(PathHelper.GetIconCacheDirectory(), $"{id}-{sourceKey}.png");
 	}
 
 	private static BitmapImage LoadBitmap(string path)

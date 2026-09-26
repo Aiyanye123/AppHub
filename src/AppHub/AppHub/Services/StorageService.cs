@@ -8,6 +8,8 @@ namespace AppHub.Services;
 
 public sealed class StorageService : IDisposable
 {
+	private const string ConfigFileName = "config.json";
+
 	private readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -16,34 +18,55 @@ public sealed class StorageService : IDisposable
 
 	private readonly object _sync = new object();
 
+	private readonly string _appDataDirectory;
+
 	private Timer? _debounceTimer;
 
 	private object? _pendingData;
 
 	private bool _disposed;
 
+	public StorageService()
+		: this(PathHelper.GetAppDataDirectory())
+	{
+	}
+
+	public StorageService(string appDataDirectory)
+	{
+		if (string.IsNullOrWhiteSpace(appDataDirectory))
+		{
+			throw new ArgumentException("App data directory is required.", nameof(appDataDirectory));
+		}
+
+		_appDataDirectory = Path.GetFullPath(appDataDirectory);
+	}
+
 	public T? Load<T>()
 	{
-		string path = GetPath("config.json");
-		if (!File.Exists(path))
+		string path = GetPath(ConfigFileName);
+		if (TryLoad(path, out T? value))
 		{
-			return default(T);
+			return value;
 		}
-		try
+
+		if (File.Exists(path))
 		{
-			return JsonSerializer.Deserialize<T>(File.ReadAllText(path), _jsonOptions);
+			File.Copy(path, path + ".corrupt", overwrite: true);
 		}
-		catch
+
+		string backupPath = GetBackupPath(path);
+		if (!TryLoad(backupPath, out value))
 		{
-			string backup = path + ".corrupt";
-			File.Copy(path, backup, overwrite: true);
-			return default(T);
+			return default;
 		}
+
+		File.Copy(backupPath, path, overwrite: true);
+		return value;
 	}
 
 	public void Save<T>(T data)
 	{
-		string path = GetPath("config.json");
+		string path = GetPath(ConfigFileName);
 		WriteFile(path, data);
 	}
 
@@ -66,9 +89,8 @@ public sealed class StorageService : IDisposable
 
 	public string GetPath(string filename)
 	{
-		string appDataDirectory = PathHelper.GetAppDataDirectory();
-		PathHelper.EnsureDirectory(appDataDirectory);
-		return Path.Combine(appDataDirectory, filename);
+		PathHelper.EnsureDirectory(_appDataDirectory);
+		return Path.Combine(_appDataDirectory, filename);
 	}
 
 	public void FlushNow()
@@ -78,7 +100,7 @@ public sealed class StorageService : IDisposable
 
 	private void FlushPending()
 	{
-		object data;
+		object? data;
 		lock (_sync)
 		{
 			data = _pendingData;
@@ -86,18 +108,56 @@ public sealed class StorageService : IDisposable
 		}
 		if (data != null)
 		{
-			string path = GetPath("config.json");
+			string path = GetPath(ConfigFileName);
 			WriteFile(path, data);
+		}
+	}
+
+	private bool TryLoad<T>(string path, out T? value)
+	{
+		value = default;
+		if (!File.Exists(path))
+		{
+			return false;
+		}
+
+		try
+		{
+			string json = File.ReadAllText(path);
+			if (string.IsNullOrWhiteSpace(json))
+			{
+				return false;
+			}
+
+			value = JsonSerializer.Deserialize<T>(json, _jsonOptions);
+			return value != null;
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
+		catch (IOException)
+		{
+			return false;
 		}
 	}
 
 	private void WriteFile<T>(string path, T data)
 	{
 		PathHelper.EnsureDirectory(Path.GetDirectoryName(path) ?? throw new InvalidOperationException("Config path invalid."));
-		string text = path + ".tmp";
+		string tempPath = path + ".tmp";
 		string json = JsonSerializer.Serialize(data, _jsonOptions);
-		File.WriteAllText(text, json);
-		File.Move(text, path, overwrite: true);
+		File.WriteAllText(tempPath, json);
+		if (File.Exists(path))
+		{
+			File.Copy(path, GetBackupPath(path), overwrite: true);
+		}
+		File.Move(tempPath, path, overwrite: true);
+	}
+
+	private static string GetBackupPath(string path)
+	{
+		return path + ".bak";
 	}
 
 	public void Dispose()

@@ -26,8 +26,6 @@ public sealed class TrayIconService : IDisposable
 
 	private const uint ShgfiUseFileAttributes = 0x10;
 
-	private const int SubMenuHorizontalOverlap = 2;
-
 	private const int MenuCornerRadius = 10;
 
 	private const int MenuItemCornerRadius = 6;
@@ -57,8 +55,6 @@ public sealed class TrayIconService : IDisposable
 	private bool _balloonShown;
 
 	private bool _isBackgroundMode;
-
-	private bool _menuNeedsRefresh = true;
 
 	private bool _keepMenuOpenOnNextItemClick;
 
@@ -97,7 +93,6 @@ public sealed class TrayIconService : IDisposable
 		};
 		contextMenuStrip.Opening += OnMenuOpening;
 		contextMenuStrip.Closing += OnMenuClosing;
-		RefreshMenu(contextMenuStrip);
 		return contextMenuStrip;
 	}
 
@@ -105,14 +100,7 @@ public sealed class TrayIconService : IDisposable
 	{
 		try
 		{
-			if (_menuNeedsRefresh)
-			{
-				RefreshMenu(_menu);
-			}
-			else
-			{
-				ApplyMenuAppearance(_menu);
-			}
+			RefreshMenu(_menu);
 		}
 		catch (Exception ex)
 		{
@@ -149,7 +137,6 @@ public sealed class TrayIconService : IDisposable
 				menu.Location = new System.Drawing.Point(currentLocation.X, y);
 			}
 		}
-		_menuNeedsRefresh = false;
 	}
 
 	private async void AnimateMenuVerticalShift(ContextMenuStrip menu, int x, int fromY, int toY, int token)
@@ -216,7 +203,7 @@ public sealed class TrayIconService : IDisposable
 						int runningCount = group.Apps.Count((ApplicationItem app) => runningStates.TryGetValue(app.Id, out bool isRunning) && isRunning);
 						ToolStripMenuItem groupItem = CreateMenuItem($"{group.Name} ({runningCount}/{group.Apps.Count})");
 						groupItem.Image = runningCount > 0 ? RunningDot : StoppedDot;
-						AttachDropDownSnap(groupItem);
+						AttachDropDownHighlightRefresh(groupItem);
 
 						foreach (ApplicationItem app in group.Apps)
 						{
@@ -416,10 +403,11 @@ public sealed class TrayIconService : IDisposable
 
 	private static Dictionary<Guid, bool> BuildRunningStates(IReadOnlyList<ApplicationItem> apps)
 	{
-		Dictionary<Guid, bool> result = new Dictionary<Guid, bool>(apps.Count);
-		foreach (ApplicationItem app in apps)
+		IReadOnlyDictionary<Guid, ProcessStatus> statuses = AppServices.ProcessService.GetRunningStatuses(apps);
+		Dictionary<Guid, bool> result = new Dictionary<Guid, bool>(statuses.Count);
+		foreach (KeyValuePair<Guid, ProcessStatus> pair in statuses)
 		{
-			result[app.Id] = AppServices.ProcessService.GetRunningStatus(app.Id).IsRunning;
+			result[pair.Key] = pair.Value.IsRunning;
 		}
 		return result;
 	}
@@ -492,7 +480,6 @@ public sealed class TrayIconService : IDisposable
 
 	private void ToggleAppFromTray(ApplicationItem app, bool isRunning)
 	{
-		_menuNeedsRefresh = true;
 		if (isRunning)
 		{
 			_ = ExecuteOnUiThreadAsync(delegate
@@ -580,6 +567,7 @@ public sealed class TrayIconService : IDisposable
 	private void ApplyMenuAppearance(ContextMenuStrip menu)
 	{
 		MenuPalette palette = MenuPalette.FromTheme(AppServices.Config.Settings.IsDarkMode);
+		menu.AutoSize = true;
 		menu.RenderMode = ToolStripRenderMode.Professional;
 		menu.Renderer = new TrayMenuRenderer(new TrayMenuColorTable(palette), palette);
 		menu.ShowCheckMargin = false;
@@ -590,6 +578,17 @@ public sealed class TrayIconService : IDisposable
 		menu.ForeColor = palette.Text;
 		menu.Font = MenuFont;
 		ApplyMenuItemAppearance(menu.Items, palette);
+		menu.PerformLayout();
+		int dropDownItemRight = menu.Items.OfType<ToolStripMenuItem>()
+			.Where(item => item.HasDropDownItems)
+			.Select(item => item.Bounds.Right)
+			.DefaultIfEmpty(0)
+			.Max();
+		if (dropDownItemRight > menu.Width)
+		{
+			menu.AutoSize = false;
+			menu.Width = dropDownItemRight;
+		}
 	}
 
 	private static void ApplyMenuItemAppearance(ToolStripItemCollection items, MenuPalette palette)
@@ -616,35 +615,16 @@ public sealed class TrayIconService : IDisposable
 		}
 	}
 
-	private static void AttachDropDownSnap(ToolStripMenuItem menuItem)
+	private static void AttachDropDownHighlightRefresh(ToolStripMenuItem menuItem)
 	{
 		menuItem.DropDownOpened += delegate
 		{
-			SnapDropDownToParent(menuItem);
 			menuItem.Owner?.Invalidate(menuItem.Bounds);
 		};
 		menuItem.DropDownClosed += delegate
 		{
 			menuItem.Owner?.Invalidate(menuItem.Bounds);
 		};
-	}
-
-	private static void SnapDropDownToParent(ToolStripMenuItem menuItem)
-	{
-		if (menuItem.Owner == null)
-		{
-			return;
-		}
-		ToolStripDropDown dropDown = menuItem.DropDown;
-		if (!dropDown.Visible)
-		{
-			return;
-		}
-		System.Drawing.Point ownerScreen = menuItem.Owner.PointToScreen(System.Drawing.Point.Empty);
-		Rectangle bounds = menuItem.Bounds;
-		int x = ownerScreen.X + bounds.Right - SubMenuHorizontalOverlap;
-		int y = ownerScreen.Y + bounds.Top;
-		dropDown.Location = new System.Drawing.Point(x, y);
 	}
 
 	private static bool TryGetShellFolderIcon(out Bitmap? bitmap)
@@ -693,7 +673,6 @@ public sealed class TrayIconService : IDisposable
 	{
 		_window.Hide();
 		_notifyIcon.Visible = true;
-		_menuNeedsRefresh = true;
 		SetBackgroundMode(isBackground: true);
 		if (!_balloonShown)
 		{
@@ -918,7 +897,7 @@ public sealed class TrayIconService : IDisposable
 			int horizontalInset = MenuItemHorizontalInset;
 			int verticalInset = MenuItemVerticalInset;
 
-			Rectangle bounds = e.Item.Bounds;
+			Rectangle bounds = new Rectangle(System.Drawing.Point.Empty, e.Item.Size);
 			Rectangle fillRect = Rectangle.Inflate(bounds, -horizontalInset, -verticalInset);
 			if (fillRect.Width <= 0 || fillRect.Height <= 0)
 			{
