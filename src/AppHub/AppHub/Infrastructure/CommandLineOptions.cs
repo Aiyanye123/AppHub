@@ -10,13 +10,17 @@ public sealed class CommandLineOptions
 
 	public bool StartInBackground { get; init; }
 
+	public Guid? LaunchAppId { get; init; }
+
 	public static CommandLineOptions Parse(string[] args)
 	{
 		bool? autoStart = null;
 		bool startInBackground = false;
-		string logDirectory = null;
-		foreach (string arg in args)
+		Guid? launchAppId = null;
+		string? logDirectory = null;
+		for (int index = 0; index < args.Length; index++)
 		{
+			string arg = args[index];
 			if (arg.StartsWith("--set-autostart=", StringComparison.OrdinalIgnoreCase) || arg.StartsWith("--autostart=", StringComparison.OrdinalIgnoreCase))
 			{
 				string text = arg;
@@ -34,12 +38,26 @@ public sealed class CommandLineOptions
 			{
 				startInBackground = true;
 			}
+			else if (arg.StartsWith("--launch=", StringComparison.OrdinalIgnoreCase))
+			{
+				if (Guid.TryParse(arg.Substring("--launch=".Length), out Guid equalsLaunchAppId))
+				{
+					launchAppId = equalsLaunchAppId;
+				}
+			}
+			else if (string.Equals(arg, "--launch", StringComparison.OrdinalIgnoreCase)
+				&& index + 1 < args.Length && Guid.TryParse(args[index + 1], out Guid spacedLaunchAppId))
+			{
+				launchAppId = spacedLaunchAppId;
+				index++;
+			}
 		}
 		return new CommandLineOptions
 		{
 			AutoStart = autoStart,
 			LogDirectory = logDirectory,
-			StartInBackground = startInBackground
+			StartInBackground = startInBackground,
+			LaunchAppId = launchAppId
 		};
 	}
 }

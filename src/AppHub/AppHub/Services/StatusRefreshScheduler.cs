@@ -12,8 +12,6 @@ public sealed class StatusRefreshScheduler : IDisposable
 
 	private const int MaxForegroundRefreshMs = 60000;
 
-	private const int DefaultForegroundRefreshMs = 3000;
-
 	private const int MinBackgroundRefreshMs = 10000;
 
 	private const int MaxBackgroundRefreshMs = 120000;
@@ -169,7 +167,7 @@ public sealed class StatusRefreshScheduler : IDisposable
 		{
 			isBackground = _isBackground;
 		}
-		int foreground = NormalizeInterval(_settings.RefreshIntervalMs, MinForegroundRefreshMs, MaxForegroundRefreshMs, DefaultForegroundRefreshMs);
+		int foreground = NormalizeInterval(_settings.RefreshIntervalMs, MinForegroundRefreshMs, MaxForegroundRefreshMs, AppSettings.DefaultRefreshIntervalMs);
 		long scaledBackground = (long)foreground * 4L;
 		int background = (int)Math.Clamp(scaledBackground, MinBackgroundRefreshMs, MaxBackgroundRefreshMs);
 		return TimeSpan.FromMilliseconds(isBackground ? background : foreground);

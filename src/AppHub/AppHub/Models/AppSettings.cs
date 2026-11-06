@@ -2,9 +2,11 @@ namespace AppHub.Models;
 
 public sealed class AppSettings
 {
+	internal const int DefaultRefreshIntervalMs = 5000;
+
 	public bool AutoStart { get; set; }
 
-	public int RefreshIntervalMs { get; set; } = 3000;
+	public int RefreshIntervalMs { get; set; } = DefaultRefreshIntervalMs;
 
 	public int CloseGracePeriodMs { get; set; } = 5000;
 
@@ -47,4 +49,20 @@ public sealed class AppSettings
 	public BackgroundStyle BackgroundStyle { get; set; }
 
 	public int BackgroundEffectStrength { get; set; } = 40;
+
+	public bool IsCompactList { get; set; }
+
+	public bool IsGridView { get; set; }
+
+	internal const int DefaultTrayFrequentCount = 5;
+
+	public int TrayFrequentCount { get; set; } = DefaultTrayFrequentCount;
+
+	public bool CloseToTray { get; set; } = true;
+
+	public bool TrayHintShown { get; set; }
+
+	public TrayLeftClickAction TrayLeftClickAction { get; set; } = TrayLeftClickAction.OpenWindow;
+
+	public string GlobalHotkey { get; set; } = "Ctrl+Alt+Space";
 }

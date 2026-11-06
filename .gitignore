@@ -27,7 +27,9 @@ coverage/
 
 # Local docs not submitted
 最近变更日志.md
-设计文档.md
-架构文档.md
+项目文档.md
+/tray_refactor_plan.md
+/ui_ux_refactor_plan.md
+/ui_ux_changes.md
 /tests
 /AGENTS.md

@@ -106,50 +106,78 @@ public sealed class ProcessControlService
 
 	public async Task<CloseResult> CloseAppAsync(Guid appId, bool force)
 	{
+		if (force)
+		{
+			return await ForceCloseAppAsync(appId);
+		}
 		if (_catalog.GetAppById(appId) == null)
 		{
 			return new CloseResult
 			{
 				Success = false,
-				ErrorMessage = "\u5e94\u7528\u4e0d\u5b58\u5728\u3002"
+				ErrorMessage = "应用不存在。"
 			};
 		}
-		ProcessStatus status = GetRunningStatus(appId);
+		ProcessStatus status = await Task.Run(() => GetRunningStatus(appId));
 		if (!status.IsRunning)
 		{
 			return new CloseResult
 			{
 				Success = false,
-				ErrorMessage = "\u5e94\u7528\u672a\u8fd0\u884c\u3002"
+				ErrorMessage = "应用未运行。"
 			};
 		}
-		if (!force)
+		return await CloseAppNormallyAsync(appId, status);
+	}
+
+	private async Task<CloseResult> CloseAppNormallyAsync(Guid appId, ProcessStatus status)
+	{
+		foreach (int processId in status.MatchedProcessIds)
 		{
-			foreach (int matchedProcessId in status.MatchedProcessIds)
+			foreach (nint window in ProcessHelper.GetTopLevelWindows(processId))
 			{
-				foreach (nint topLevelWindow in ProcessHelper.GetTopLevelWindows(matchedProcessId))
-				{
-					ProcessHelper.SendClose(topLevelWindow);
-				}
+				ProcessHelper.SendClose(window);
 			}
-			await Task.Delay(NormalizeCloseGracePeriodMs(_settings.CloseGracePeriodMs));
-			status = GetRunningStatus(appId);
-			if (!status.IsRunning)
+		}
+		await Task.Delay(NormalizeCloseGracePeriodMs(_settings.CloseGracePeriodMs));
+		ProcessStatus remainingStatus = await Task.Run(() => GetRunningStatus(appId));
+		if (!remainingStatus.IsRunning)
+		{
+			AppServices.StatusScheduler.RequestImmediateRefresh();
+			return new CloseResult
 			{
-				AppServices.StatusScheduler.RequestImmediateRefresh();
-				return new CloseResult
-				{
-					Success = true
-				};
-			}
-			if (_settings.AllowForceKill)
-			{
-				return await CloseAppAsync(appId, force: true);
-			}
+				Success = true
+			};
+		}
+		if (_settings.AllowForceKill)
+		{
+			// Recheck the app and running processes before escalating to force close.
+			return await ForceCloseAppAsync(appId);
+		}
+		return new CloseResult
+		{
+			Success = false,
+			ErrorMessage = "应用未在限定时间内退出。"
+		};
+	}
+
+	private async Task<CloseResult> ForceCloseAppAsync(Guid appId)
+	{
+		if (_catalog.GetAppById(appId) == null)
+		{
 			return new CloseResult
 			{
 				Success = false,
-				ErrorMessage = "\u5e94\u7528\u672a\u5728\u9650\u5b9a\u65f6\u95f4\u5185\u9000\u51fa\u3002"
+				ErrorMessage = "应用不存在。"
+			};
+		}
+		ProcessStatus status = await Task.Run(() => GetRunningStatus(appId));
+		if (!status.IsRunning)
+		{
+			return new CloseResult
+			{
+				Success = false,
+				ErrorMessage = "应用未运行。"
 			};
 		}
 		if (!_settings.AllowForceKill)
@@ -157,7 +185,7 @@ public sealed class ProcessControlService
 			return new CloseResult
 			{
 				Success = false,
-				ErrorMessage = "\u5df2\u7981\u7528\u5f3a\u5236\u7ed3\u675f\u8fdb\u7a0b\u3002"
+				ErrorMessage = "已禁用强制结束进程。"
 			};
 		}
 		foreach (int pid in status.MatchedProcessIds)
@@ -172,14 +200,14 @@ public sealed class ProcessControlService
 			}
 		}
 		await Task.Delay(300);
-		ProcessStatus verify = GetRunningStatus(appId);
+		ProcessStatus remainingStatus = await Task.Run(() => GetRunningStatus(appId));
 		AppServices.StatusScheduler.RequestImmediateRefresh();
-		if (verify.IsRunning)
+		if (remainingStatus.IsRunning)
 		{
 			return new CloseResult
 			{
 				Success = false,
-				ErrorMessage = "\u7ec8\u6b62\u8fdb\u7a0b\u5931\u8d25\u3002"
+				ErrorMessage = "终止进程失败。"
 			};
 		}
 		return new CloseResult

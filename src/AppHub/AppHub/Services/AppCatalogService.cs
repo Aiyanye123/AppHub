@@ -23,6 +23,8 @@ public sealed class AppCatalogService
 
 	private readonly AppLogger _logger;
 
+	public event EventHandler? Changed;
+
 	public AppCatalogService(StorageService storage, AppConfig config, AppLogger logger)
 	{
 		_storage = storage;
@@ -45,7 +47,7 @@ public sealed class AppCatalogService
 		ApplicationItem item = BuildItemFromPath(path);
 		item.SortIndex = ((_config.Apps.Count != 0) ? (_config.Apps.Max((ApplicationItem a) => a.SortIndex) + 1) : 0);
 		_config.Apps.Add(item);
-		_storage.ScheduleSave(_config);
+		SaveChanges();
 		return item;
 	}
 
@@ -102,7 +104,7 @@ public sealed class AppCatalogService
 		obj.TrackProcess = item.TrackProcess;
 		obj.IsPinned = item.IsPinned;
 		obj.GroupStates = NormalizeGroupStates(item.GroupStates);
-		_storage.ScheduleSave(_config);
+		SaveChanges();
 	}
 
 	public void SetPinned(Guid id, string groupScope, bool isPinned)
@@ -110,17 +112,31 @@ public sealed class AppCatalogService
 		ApplicationItem item = GetAppById(id) ?? throw new InvalidOperationException("App not found.");
 		string normalizedScope = AppGroupScope.Normalize(groupScope);
 		item.SetPinned(normalizedScope, isPinned);
-		if (string.Equals(normalizedScope, AppGroupScope.AllGroups, StringComparison.Ordinal))
+		if (string.Equals(normalizedScope, AppGroupScope.AllGroups, StringComparison.OrdinalIgnoreCase))
 		{
 			item.IsPinned = isPinned;
 		}
-		_storage.ScheduleSave(_config);
+		SaveChanges();
 	}
 
 	public void RemoveApp(Guid id)
 	{
 		_config.Apps.RemoveAll((ApplicationItem app) => app.Id == id);
-		_storage.ScheduleSave(_config);
+		SaveChanges();
+	}
+
+	public ApplicationItem RestoreApp(ApplicationItem item)
+	{
+		ArgumentNullException.ThrowIfNull(item, "item");
+		ApplicationItem? existing = GetAppById(item.Id);
+		if (existing != null)
+		{
+			return existing;
+		}
+		ApplicationItem restored = item.Clone();
+		_config.Apps.Add(restored);
+		SaveChanges();
+		return restored;
 	}
 
 	public void ReorderApps(IReadOnlyList<Guid> ids)
@@ -133,7 +149,20 @@ public sealed class AppCatalogService
 				app.SortIndex = i;
 			}
 		}
+		SaveChanges();
+	}
+
+	public void RecordLaunch(Guid id)
+	{
+		ApplicationItem item = GetAppById(id) ?? throw new InvalidOperationException("App not found.");
+		item.LastLaunchTime = DateTime.Now;
+		SaveChanges();
+	}
+
+	private void SaveChanges()
+	{
 		_storage.ScheduleSave(_config);
+		Changed?.Invoke(this, EventArgs.Empty);
 	}
 
 	public IReadOnlyList<ApplicationItem> SearchApps(string keyword)

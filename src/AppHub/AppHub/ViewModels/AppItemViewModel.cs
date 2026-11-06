@@ -1,7 +1,8 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Media;
+using AppHub.Infrastructure;
 using AppHub.Models;
 using AppHub.Services;
 using CommunityToolkit.Mvvm.Input;
@@ -24,9 +25,13 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	private readonly Action<AppItemViewModel>? _togglePinRequested;
 
+	private readonly Action<AppItemViewModel>? _inspectRequested;
+
 	private ImageSource? _icon;
 
 	private bool _isRunning;
+
+	private bool _isLaunching;
 
 	private string _displayName;
 
@@ -75,23 +80,59 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	public string GroupName => _groupName;
 
-	public string GroupDisplayName => string.IsNullOrWhiteSpace(_groupName) ? "\u672a\u5206\u7ec4" : _groupName;
+	public string GroupDisplayName => string.IsNullOrWhiteSpace(_groupName) ? "未分组" : _groupName;
 
-	public string SourceTypeText => _model.SourceType switch
+	public string SourceTypeText
 	{
-		SourceType.Exe => "EXE",
-		SourceType.Shortcut => "LNK",
-		SourceType.Folder => "Folder",
-		_ => _model.SourceType.ToString()
-	};
+		get
+		{
+			if (_model.SourceType == SourceType.Folder)
+			{
+				return "文件夹";
+			}
+			if (_model.SourceType == SourceType.Shortcut)
+			{
+				return "LNK";
+			}
+			string ext = Path.GetExtension(_model.TargetPath ?? string.Empty);
+			if (string.Equals(ext, ".bat", StringComparison.OrdinalIgnoreCase))
+			{
+				return "BAT";
+			}
+			return "EXE";
+		}
+	}
+
+	public string SourceBadgeGlyph
+	{
+		get
+		{
+			if (_model.SourceType == SourceType.Folder)
+			{
+				return "\uE8B7";
+			}
+			if (_model.SourceType == SourceType.Shortcut)
+			{
+				return "\uE71B";
+			}
+			string ext = Path.GetExtension(_model.TargetPath ?? string.Empty);
+			if (string.Equals(ext, ".bat", StringComparison.OrdinalIgnoreCase))
+			{
+				return "\uE756";
+			}
+			return string.Empty;
+		}
+	}
+
+	public bool ShowSourceBadge => !string.IsNullOrEmpty(SourceBadgeGlyph);
 
 	public string TargetPath => _model.TargetPath;
 
-	public string WorkingDirectoryDisplay => string.IsNullOrWhiteSpace(_model.WorkingDirectory) ? "\u2014" : _model.WorkingDirectory;
+	public string WorkingDirectoryDisplay => string.IsNullOrWhiteSpace(_model.WorkingDirectory) ? "—" : _model.WorkingDirectory;
 
-	public string ArgumentsDisplay => string.IsNullOrWhiteSpace(_model.Arguments) ? "\u2014" : _model.Arguments;
+	public string ArgumentsDisplay => string.IsNullOrWhiteSpace(_model.Arguments) ? "—" : _model.Arguments;
 
-	public string TrackProcessText => _model.TrackProcess ? "\u5df2\u542f\u7528" : "\u4e0d\u8ddf\u8e2a";
+	public string TrackProcessText => _model.TrackProcess ? "已启用" : "不跟踪";
 
 	public bool IsPinned
 	{
@@ -129,11 +170,48 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	public long LastLaunchTicks => _lastLaunchTime?.Ticks ?? long.MinValue;
 
-	public string LastLaunchDisplay => _lastLaunchTime.HasValue ? _lastLaunchTime.Value.ToString("yyyy/MM/dd HH:mm") : "\u2014";
+	public string LastLaunchDisplay => _lastLaunchTime.HasValue ? _lastLaunchTime.Value.ToString("yyyy/MM/dd HH:mm") : "—";
+
+	public string LastLaunchRelativeDisplay
+	{
+		get
+		{
+			if (!_lastLaunchTime.HasValue)
+			{
+				return "—";
+			}
+			TimeSpan span = DateTime.Now - _lastLaunchTime.Value;
+			if (span.TotalSeconds < 60)
+			{
+				return "刚刚";
+			}
+			if (span.TotalMinutes < 60)
+			{
+				return $"{(int)span.TotalMinutes} 分钟前";
+			}
+			if (span.TotalHours < 24)
+			{
+				return $"{(int)span.TotalHours} 小时前";
+			}
+			if (span.TotalDays < 30)
+			{
+				return $"{(int)span.TotalDays} 天前";
+			}
+			if (span.TotalDays < 365)
+			{
+				return $"{Math.Max(1, (int)(span.TotalDays / 30))} 个月前";
+			}
+			return _lastLaunchTime.Value.ToString("yyyy/MM/dd");
+		}
+	}
+
+	public string LastLaunchTooltip => _lastLaunchTime.HasValue
+		? $"最近启动时间：{_lastLaunchTime.Value:yyyy/MM/dd HH:mm:ss}"
+		: "尚无启动记录";
 
 	public int SortIndex => _model.SortIndex;
 
-	public string PinMenuText => IsPinned ? "\u53d6\u6d88\u7f6e\u9876" : "\u7f6e\u9876";
+	public string PinMenuText => IsPinned ? "取消置顶" : "置顶";
 
 	public bool ShowPinBadge => IsPinned && CanTogglePin;
 
@@ -147,12 +225,39 @@ public sealed class AppItemViewModel : ViewModelBase
 		{
 			if (SetProperty(ref _isRunning, value, "IsRunning"))
 			{
+				if (value)
+				{
+					IsLaunching = false;
+				}
 				OnPropertyChanged("StatusText");
+				OnPropertyChanged("ActiveStatusText");
+				OnPropertyChanged("ShowStatusBadge");
 			}
 		}
 	}
 
-	public string StatusText => IsRunning ? "\u8fd0\u884c\u4e2d" : "\u672a\u8fd0\u884c";
+	public bool IsLaunching
+	{
+		get
+		{
+			return _isLaunching;
+		}
+		private set
+		{
+			if (SetProperty(ref _isLaunching, value, "IsLaunching"))
+			{
+				OnPropertyChanged("StatusText");
+				OnPropertyChanged("ActiveStatusText");
+				OnPropertyChanged("ShowStatusBadge");
+			}
+		}
+	}
+
+	public bool ShowStatusBadge => IsRunning || IsLaunching;
+
+	public string StatusText => IsRunning ? "运行中" : (IsLaunching ? "启动中…" : "未运行");
+
+	public string ActiveStatusText => IsRunning ? "运行中" : (IsLaunching ? "启动中…" : string.Empty);
 
 	public bool IsActionRunning
 	{
@@ -183,7 +288,17 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	public IRelayCommand TogglePinCommand { get; }
 
-	public AppItemViewModel(ApplicationItem model, LaunchService launchService, ProcessControlService processService, IconService iconService, Action<AppItemViewModel>? editRequested, Action<AppItemViewModel>? removeRequested, Action<AppItemViewModel>? togglePinRequested)
+	public IRelayCommand InspectCommand { get; }
+
+	public AppItemViewModel(
+		ApplicationItem model,
+		LaunchService launchService,
+		ProcessControlService processService,
+		IconService iconService,
+		Action<AppItemViewModel>? editRequested,
+		Action<AppItemViewModel>? removeRequested,
+		Action<AppItemViewModel>? togglePinRequested,
+		Action<AppItemViewModel>? inspectRequested = null)
 	{
 		_model = model;
 		_launchService = launchService;
@@ -192,9 +307,10 @@ public sealed class AppItemViewModel : ViewModelBase
 		_editRequested = editRequested;
 		_removeRequested = removeRequested;
 		_togglePinRequested = togglePinRequested;
+		_inspectRequested = inspectRequested;
 		_displayName = _model.DisplayName;
 		_groupName = NormalizeGroupName(_model.GroupName);
-		_isPinned = ResolvePinnedForScope(_activeGroupScope);
+		_isPinned = IsPinnedInActiveGroup();
 		_lastLaunchTime = _model.LastLaunchTime;
 
 		LaunchCommand = new RelayCommand(OnLaunchRequested, CanLaunch);
@@ -216,6 +332,10 @@ public sealed class AppItemViewModel : ViewModelBase
 		{
 			_togglePinRequested?.Invoke(this);
 		}, CanTogglePinCommand);
+		InspectCommand = new RelayCommand(delegate
+		{
+			_inspectRequested?.Invoke(this);
+		});
 
 		RefreshIcon();
 		NotifyCommandStateChanged();
@@ -227,22 +347,25 @@ public sealed class AppItemViewModel : ViewModelBase
 		if (!string.Equals(_activeGroupScope, normalized, StringComparison.Ordinal))
 		{
 			_activeGroupScope = normalized;
-			IsPinned = ResolvePinnedForScope(_activeGroupScope);
+			IsPinned = IsPinnedInActiveGroup();
 		}
-	}
-
-	public void SetPinnedForActiveGroup(bool isPinned)
-	{
-		_model.SetPinned(_activeGroupScope, isPinned);
-		if (string.Equals(_activeGroupScope, AppGroupScope.AllGroups, StringComparison.Ordinal))
-		{
-			_model.IsPinned = isPinned;
-		}
-		IsPinned = isPinned;
 	}
 
 	public void UpdateStatus(ProcessStatus status)
 	{
+		if (_lastLaunchTime != _model.LastLaunchTime)
+		{
+			_lastLaunchTime = _model.LastLaunchTime;
+			OnPropertyChanged("LastLaunchTime");
+			OnPropertyChanged("LastLaunchTicks");
+			OnPropertyChanged("LastLaunchDisplay");
+			OnPropertyChanged("LastLaunchRelativeDisplay");
+			OnPropertyChanged("LastLaunchTooltip");
+		}
+		if (status.IsRunning)
+		{
+			IsLaunching = false;
+		}
 		if (IsRunning == status.IsRunning)
 		{
 			return;
@@ -257,19 +380,33 @@ public sealed class AppItemViewModel : ViewModelBase
 		Icon = _iconService.GetIcon(_model);
 	}
 
+	public void RefreshRelativeTime()
+	{
+		OnPropertyChanged("LastLaunchRelativeDisplay");
+	}
+
 	public void SyncFromModel()
 	{
 		_displayName = _model.DisplayName;
 		_groupName = NormalizeGroupName(_model.GroupName);
-		_isPinned = ResolvePinnedForScope(_activeGroupScope);
+		_isPinned = IsPinnedInActiveGroup();
 		_lastLaunchTime = _model.LastLaunchTime;
 		OnPropertyChanged("DisplayName");
 		OnPropertyChanged("GroupName");
 		OnPropertyChanged("GroupDisplayName");
+		OnPropertyChanged("SourceTypeText");
+		OnPropertyChanged("SourceBadgeGlyph");
+		OnPropertyChanged("ShowSourceBadge");
+		OnPropertyChanged("TargetPath");
+		OnPropertyChanged("WorkingDirectoryDisplay");
+		OnPropertyChanged("ArgumentsDisplay");
+		OnPropertyChanged("TrackProcessText");
 		OnPropertyChanged("IsPinned");
 		OnPropertyChanged("LastLaunchTime");
 		OnPropertyChanged("LastLaunchTicks");
 		OnPropertyChanged("LastLaunchDisplay");
+		OnPropertyChanged("LastLaunchRelativeDisplay");
+		OnPropertyChanged("LastLaunchTooltip");
 		OnPropertyChanged("SortIndex");
 		OnPropertyChanged("PinMenuText");
 		OnPropertyChanged("ShowPinBadge");
@@ -277,7 +414,7 @@ public sealed class AppItemViewModel : ViewModelBase
 		NotifyCommandStateChanged();
 	}
 
-	private void OnLaunchRequested()
+	private async void OnLaunchRequested()
 	{
 		if (IsActionRunning)
 		{
@@ -293,13 +430,30 @@ public sealed class AppItemViewModel : ViewModelBase
 				OnPropertyChanged("LastLaunchTime");
 				OnPropertyChanged("LastLaunchTicks");
 				OnPropertyChanged("LastLaunchDisplay");
+				OnPropertyChanged("LastLaunchRelativeDisplay");
+				OnPropertyChanged("LastLaunchTooltip");
+				if (_model.TrackProcess && !IsRunning && _model.SourceType != SourceType.Folder)
+				{
+					IsLaunching = true;
+					AppServices.StatusScheduler.RequestImmediateRefresh();
+					_ = ClearLaunchingAfterDelayAsync();
+				}
 				return;
 			}
-			ShowActionError("\u542f\u52a8\u5931\u8d25", result.ErrorMessage);
+			ShowActionError("启动失败", result.ErrorMessage);
 		}
 		finally
 		{
 			IsActionRunning = false;
+		}
+	}
+
+	private async Task ClearLaunchingAfterDelayAsync()
+	{
+		await Task.Delay(3500);
+		if (IsLaunching)
+		{
+			IsLaunching = false;
 		}
 	}
 
@@ -315,7 +469,7 @@ public sealed class AppItemViewModel : ViewModelBase
 			CloseResult result = await _processService.CloseAppAsync(_model.Id, force);
 			if (!result.Success)
 			{
-				ShowActionError(force ? "\u5f3a\u5236\u7ed3\u675f\u5931\u8d25" : "\u5173\u95ed\u5931\u8d25", result.ErrorMessage);
+				ShowActionError(force ? "强制结束失败" : "关闭失败", result.ErrorMessage);
 			}
 		}
 		finally
@@ -357,8 +511,8 @@ public sealed class AppItemViewModel : ViewModelBase
 
 	private static void ShowActionError(string title, string? message)
 	{
-		string text = string.IsNullOrWhiteSpace(message) ? "\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002" : message;
-		MessageBox.Show(text, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+		string text = string.IsNullOrWhiteSpace(message) ? "操作失败，请稍后重试。" : message;
+		ToastService.ShowError($"{title}：{text}");
 	}
 
 	private static string NormalizeGroupName(string? groupName)
@@ -366,18 +520,12 @@ public sealed class AppItemViewModel : ViewModelBase
 		return string.IsNullOrWhiteSpace(groupName) ? string.Empty : groupName.Trim();
 	}
 
-	private bool ResolvePinnedForScope(string groupScope)
+	private bool IsPinnedInActiveGroup()
 	{
-		bool scopedPinned = _model.GetPinned(groupScope);
-		if (scopedPinned)
+		if (_model.GetPinned(_activeGroupScope))
 		{
 			return true;
 		}
-		if (string.Equals(AppGroupScope.Normalize(groupScope), AppGroupScope.AllGroups, StringComparison.Ordinal) && _model.IsPinned)
-		{
-			_model.SetPinned(AppGroupScope.AllGroups, isPinned: true);
-			return true;
-		}
-		return false;
+		return _model.IsPinned && string.Equals(_activeGroupScope, AppGroupScope.AllGroups, StringComparison.OrdinalIgnoreCase);
 	}
 }

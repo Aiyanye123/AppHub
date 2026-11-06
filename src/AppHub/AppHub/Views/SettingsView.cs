@@ -21,11 +21,26 @@ public partial class SettingsView : UserControl
 		InitializeComponent();
 	}
 
+	private void OnLoaded(object sender, RoutedEventArgs e)
+	{
+		ViewModel.SyncFromGlobalSettings();
+	}
+
+	private void OnLightThemeClick(object sender, RoutedEventArgs e)
+	{
+		ViewModel.IsDarkMode = false;
+	}
+
+	private void OnDarkThemeClick(object sender, RoutedEventArgs e)
+	{
+		ViewModel.IsDarkMode = true;
+	}
+
 	private void OnBrowseLogDirectory(object sender, RoutedEventArgs e)
 	{
 		using WinForms.FolderBrowserDialog dialog = new WinForms.FolderBrowserDialog
 		{
-			Description = "\u9009\u62e9\u65e5\u5fd7\u76ee\u5f55",
+			Description = "选择日志目录",
 			UseDescriptionForTitle = true
 		};
 		if (!string.IsNullOrWhiteSpace(ViewModel.LogDirectory) && Directory.Exists(ViewModel.LogDirectory))
@@ -35,28 +50,33 @@ public partial class SettingsView : UserControl
 		if (dialog.ShowDialog() == WinForms.DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
 		{
 			ViewModel.LogDirectory = dialog.SelectedPath;
+			ToastService.ShowSuccess("日志存储目录已更新。");
 		}
 	}
 
 	private void OnOpenLogs(object sender, RoutedEventArgs e)
 	{
-		if (!string.IsNullOrWhiteSpace(ViewModel.LogDirectory))
+		if (!string.IsNullOrWhiteSpace(ViewModel.LogDirectory) && Directory.Exists(ViewModel.LogDirectory))
 		{
 			Process.Start(new ProcessStartInfo("explorer.exe", ViewModel.LogDirectory)
 			{
 				UseShellExecute = true
 			});
 		}
+		else
+		{
+			ToastService.ShowWarning("日志目录当前不存在。");
+		}
 	}
 
 	private void OnDeleteAllLogs(object sender, RoutedEventArgs e)
 	{
-		if (MessageBox.Show("\u786e\u8ba4\u5220\u9664\u6240\u6709\u65e5\u5fd7\u6587\u4ef6\u5417\uff1f", "\u5220\u9664\u65e5\u5fd7", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+		if (MessageBox.Show("确认删除所有日志文件吗？", "删除日志", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
 		{
 			return;
 		}
 		int deleted = AppServices.Logger.DeleteAllLogs();
-		MessageBox.Show($"\u5df2\u5220\u9664 {deleted} \u4e2a\u65e5\u5fd7\u6587\u4ef6\u3002", "\u5220\u9664\u5b8c\u6210", MessageBoxButton.OK, MessageBoxImage.Information);
+		ToastService.ShowSuccess($"已清理 {deleted} 个日志文件。");
 	}
 
 	private void OnExportConfig(object sender, RoutedEventArgs e)
@@ -77,11 +97,11 @@ public partial class SettingsView : UserControl
 		{
 			AppServices.Storage.FlushNow();
 			File.Copy(AppServices.Storage.GetPath("config.json"), dialog.FileName, overwrite: true);
-			MessageBox.Show("配置已导出。", "导出完成", MessageBoxButton.OK, MessageBoxImage.Information);
+			ToastService.ShowSuccess("配置文件已成功导出。");
 		}
 		catch (Exception ex)
 		{
-			MessageBox.Show("导出失败：" + ex.Message, "导出配置", MessageBoxButton.OK, MessageBoxImage.Warning);
+			ToastService.ShowError("导出失败：" + ex.Message);
 		}
 	}
 
@@ -131,13 +151,13 @@ public partial class SettingsView : UserControl
 		}
 		catch (Exception ex)
 		{
-			MessageBox.Show("导入失败：" + ex.Message, "导入配置", MessageBoxButton.OK, MessageBoxImage.Warning);
+			ToastService.ShowError("导入失败：" + ex.Message);
 		}
 	}
 
 	private void OnBrowseLightBackgroundImage(object sender, RoutedEventArgs e)
 	{
-		string? selected = SelectBackgroundImage("\u9009\u62e9\u4eae\u8272\u80cc\u666f\u56fe\u7247", ViewModel.LightBackgroundImagePath);
+		string? selected = SelectBackgroundImage("选择亮色背景图片", ViewModel.LightBackgroundImagePath);
 		if (!string.IsNullOrWhiteSpace(selected))
 		{
 			ViewModel.LightBackgroundImagePath = selected;
@@ -160,7 +180,7 @@ public partial class SettingsView : UserControl
 
 	private void OnBrowseDarkBackgroundImage(object sender, RoutedEventArgs e)
 	{
-		string? selected = SelectBackgroundImage("\u9009\u62e9\u6697\u8272\u80cc\u666f\u56fe\u7247", ViewModel.DarkBackgroundImagePath);
+		string? selected = SelectBackgroundImage("选择暗色背景图片", ViewModel.DarkBackgroundImagePath);
 		if (!string.IsNullOrWhiteSpace(selected))
 		{
 			ViewModel.DarkBackgroundImagePath = selected;

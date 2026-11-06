@@ -1,7 +1,11 @@
 using System;
+using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using AppHub.Infrastructure;
 using AppHub.Models;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AppHub.ViewModels;
 
@@ -10,8 +14,6 @@ public sealed class SettingsViewModel : ViewModelBase
 	private const int MinRefreshIntervalMs = 1000;
 
 	private const int MaxRefreshIntervalMs = 60000;
-
-	private const int DefaultRefreshIntervalMs = 3000;
 
 	private const int MinCloseGracePeriodMs = 200;
 
@@ -26,6 +28,12 @@ public sealed class SettingsViewModel : ViewModelBase
 	private const int DefaultDarkPanelOpacity = 88;
 
 	private readonly AppSettings _settings;
+
+	private bool _isDarkMode;
+
+	private bool _isCompactList;
+
+	private bool _isEditingDarkBackground;
 
 	private bool _autoStart;
 
@@ -57,24 +65,37 @@ public sealed class SettingsViewModel : ViewModelBase
 
 	private double _darkBackgroundEffectStrength;
 
-	private double _lightSidebarOpacity;
-
-	private double _lightProgramOpacity;
-
-	private double _darkSidebarOpacity;
-
-	private double _darkProgramOpacity;
-
 	private double _panelOpacity;
+
+	private double _trayFrequentCount;
+
+	private bool _closeToTray;
+
+	private TrayLeftClickAction _trayLeftClickAction;
+
+	private string _globalHotkey = string.Empty;
+
+	private string _globalHotkeyError = string.Empty;
+
+	public IRelayCommand SelectLightBgTabCommand { get; }
+
+	public IRelayCommand SelectDarkBgTabCommand { get; }
 
 	public SettingsViewModel()
 	{
 		_settings = AppServices.Config.Settings;
+		_isDarkMode = _settings.IsDarkMode;
+		_isCompactList = _settings.IsCompactList;
+		_isEditingDarkBackground = _settings.IsDarkMode;
 		_autoStart = _settings.AutoStart;
 		_refreshIntervalMs = _settings.RefreshIntervalMs;
 		_closeGracePeriodMs = _settings.CloseGracePeriodMs;
 		_allowForceKill = _settings.AllowForceKill;
 		_alwaysOnTop = _settings.AlwaysOnTop;
+		_trayFrequentCount = Math.Clamp(_settings.TrayFrequentCount, 0, 15);
+		_closeToTray = _settings.CloseToTray;
+		_trayLeftClickAction = _settings.TrayLeftClickAction;
+		_globalHotkey = _settings.GlobalHotkey ?? string.Empty;
 		_logDirectory = _settings.LogDirectory;
 		_logMaxSizeMb = _settings.LogMaxSizeMb;
 		_isLoggingEnabled = _settings.IsLoggingEnabled;
@@ -85,23 +106,119 @@ public sealed class SettingsViewModel : ViewModelBase
 		_darkBackgroundImagePath = _settings.DarkBackgroundImagePath ?? string.Empty;
 		_darkBackgroundStyle = NormalizeStyle(_settings.DarkBackgroundStyle);
 		_darkBackgroundEffectStrength = NormalizeStrength(_settings.DarkBackgroundEffectStrength);
-		_lightSidebarOpacity = NormalizeOpacity(_settings.LightSidebarOpacity, DefaultLightPanelOpacity);
-		_lightProgramOpacity = NormalizeOpacity(_settings.LightProgramOpacity, DefaultLightPanelOpacity);
-		_darkSidebarOpacity = NormalizeOpacity(_settings.DarkSidebarOpacity, DefaultDarkPanelOpacity);
-		_darkProgramOpacity = NormalizeOpacity(_settings.DarkProgramOpacity, DefaultDarkPanelOpacity);
+		int lightSidebarOpacity = NormalizeOpacity(_settings.LightSidebarOpacity, DefaultLightPanelOpacity);
+		int lightProgramOpacity = NormalizeOpacity(_settings.LightProgramOpacity, DefaultLightPanelOpacity);
+		int darkSidebarOpacity = NormalizeOpacity(_settings.DarkSidebarOpacity, DefaultDarkPanelOpacity);
+		int darkProgramOpacity = NormalizeOpacity(_settings.DarkProgramOpacity, DefaultDarkPanelOpacity);
 		_panelOpacity = ResolvePanelOpacity(
-			_lightSidebarOpacity,
-			_lightProgramOpacity,
-			_darkSidebarOpacity,
-			_darkProgramOpacity,
+			lightSidebarOpacity,
+			lightProgramOpacity,
+			darkSidebarOpacity,
+			darkProgramOpacity,
 			_settings.IsDarkMode);
 		int normalizedPanelOpacity = (int)_panelOpacity;
 		bool requiresNormalization =
-			_lightSidebarOpacity != normalizedPanelOpacity ||
-			_lightProgramOpacity != normalizedPanelOpacity ||
-			_darkSidebarOpacity != normalizedPanelOpacity ||
-			_darkProgramOpacity != normalizedPanelOpacity;
+			lightSidebarOpacity != normalizedPanelOpacity ||
+			lightProgramOpacity != normalizedPanelOpacity ||
+			darkSidebarOpacity != normalizedPanelOpacity ||
+			darkProgramOpacity != normalizedPanelOpacity;
 		ApplyUnifiedPanelOpacity(normalizedPanelOpacity, persistChanges: requiresNormalization);
+
+		SelectLightBgTabCommand = new RelayCommand(delegate
+		{
+			IsEditingDarkBackground = false;
+		});
+		SelectDarkBgTabCommand = new RelayCommand(delegate
+		{
+			IsEditingDarkBackground = true;
+		});
+	}
+
+	public void SyncFromGlobalSettings()
+	{
+		if (_isDarkMode != _settings.IsDarkMode)
+		{
+			_isDarkMode = _settings.IsDarkMode;
+			OnPropertyChanged("IsDarkMode");
+		}
+		if (_isCompactList != _settings.IsCompactList)
+		{
+			_isCompactList = _settings.IsCompactList;
+			OnPropertyChanged("IsCompactList");
+		}
+		int clampedFrequent = Math.Clamp(_settings.TrayFrequentCount, 0, 15);
+		if ((int)_trayFrequentCount != clampedFrequent)
+		{
+			_trayFrequentCount = clampedFrequent;
+			OnPropertyChanged("TrayFrequentCount");
+			OnPropertyChanged("TrayFrequentCountText");
+		}
+	}
+
+	public bool IsDarkMode
+	{
+		get
+		{
+			return _isDarkMode;
+		}
+		set
+		{
+			if (SetProperty(ref _isDarkMode, value, "IsDarkMode"))
+			{
+				_settings.IsDarkMode = value;
+				IsEditingDarkBackground = value;
+				ThemeService.ApplyTheme(value);
+				BackgroundEffectService.Apply(Application.Current?.MainWindow, _settings);
+				if (Application.Current?.MainWindow is MainWindow mainWin)
+				{
+					mainWin.SyncThemeButtonVisual();
+				}
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+			}
+		}
+	}
+
+	public bool IsCompactList
+	{
+		get
+		{
+			return _isCompactList;
+		}
+		set
+		{
+			if (SetProperty(ref _isCompactList, value, "IsCompactList"))
+			{
+				_settings.IsCompactList = value;
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+			}
+		}
+	}
+
+	public bool IsEditingDarkBackground
+	{
+		get
+		{
+			return _isEditingDarkBackground;
+		}
+		set
+		{
+			if (SetProperty(ref _isEditingDarkBackground, value, "IsEditingDarkBackground"))
+			{
+				OnPropertyChanged("IsEditingLightBackground");
+			}
+		}
+	}
+
+	public bool IsEditingLightBackground
+	{
+		get
+		{
+			return !_isEditingDarkBackground;
+		}
+		set
+		{
+			IsEditingDarkBackground = !value;
+		}
 	}
 
 	public bool AutoStart
@@ -138,16 +255,29 @@ public sealed class SettingsViewModel : ViewModelBase
 		{
 			if (SetProperty(ref _refreshIntervalMs, value, "RefreshIntervalMs"))
 			{
-				int normalized = NormalizeInterval(value, MinRefreshIntervalMs, MaxRefreshIntervalMs, DefaultRefreshIntervalMs);
+				int normalized = NormalizeInterval(value, MinRefreshIntervalMs, MaxRefreshIntervalMs, AppSettings.DefaultRefreshIntervalMs);
 				_settings.RefreshIntervalMs = normalized;
 				if (!double.Equals(_refreshIntervalMs, normalized))
 				{
 					_refreshIntervalMs = normalized;
 					OnPropertyChanged("RefreshIntervalMs");
 				}
+				OnPropertyChanged("RefreshIntervalSeconds");
 				AppServices.Storage.ScheduleSave(AppServices.Config);
 				AppServices.StatusScheduler.RequestImmediateRefresh();
 			}
+		}
+	}
+
+	public double RefreshIntervalSeconds
+	{
+		get
+		{
+			return Math.Round(_refreshIntervalMs / 1000.0, 1);
+		}
+		set
+		{
+			RefreshIntervalMs = Math.Round(Math.Clamp(value, 1, 60) * 1000.0);
 		}
 	}
 
@@ -168,8 +298,21 @@ public sealed class SettingsViewModel : ViewModelBase
 					_closeGracePeriodMs = normalized;
 					OnPropertyChanged("CloseGracePeriodMs");
 				}
+				OnPropertyChanged("CloseGracePeriodSeconds");
 				AppServices.Storage.ScheduleSave(AppServices.Config);
 			}
+		}
+	}
+
+	public double CloseGracePeriodSeconds
+	{
+		get
+		{
+			return Math.Round(_closeGracePeriodMs / 1000.0, 1);
+		}
+		set
+		{
+			CloseGracePeriodMs = Math.Round(Math.Clamp(value, 0.5, 120) * 1000.0);
 		}
 	}
 
@@ -207,6 +350,84 @@ public sealed class SettingsViewModel : ViewModelBase
 				}
 				AppServices.Storage.ScheduleSave(AppServices.Config);
 			}
+		}
+	}
+
+	public double TrayFrequentCount
+	{
+		get
+		{
+			return _trayFrequentCount;
+		}
+		set
+		{
+			int normalized = Math.Clamp((int)Math.Round(value), 0, 15);
+			if (SetProperty(ref _trayFrequentCount, normalized, "TrayFrequentCount"))
+			{
+				_settings.TrayFrequentCount = normalized;
+				OnPropertyChanged("TrayFrequentCountText");
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+				AppServices.NotifyTraySettingsChanged();
+			}
+		}
+	}
+
+	public string TrayFrequentCountText => (int)_trayFrequentCount <= 0 ? "已隐藏" : $"{(int)_trayFrequentCount} 个";
+
+	public bool CloseToTray
+	{
+		get => _closeToTray;
+		set
+		{
+			if (SetProperty(ref _closeToTray, value, nameof(CloseToTray)))
+			{
+				_settings.CloseToTray = value;
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+			}
+		}
+	}
+
+	public TrayLeftClickAction TrayLeftClickAction
+	{
+		get => _trayLeftClickAction;
+		set
+		{
+			if (SetProperty(ref _trayLeftClickAction, value, nameof(TrayLeftClickAction)))
+			{
+				_settings.TrayLeftClickAction = value;
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+				AppServices.NotifyTraySettingsChanged();
+			}
+		}
+	}
+
+	public string GlobalHotkey
+	{
+		get => _globalHotkey;
+		set
+		{
+			string normalized = value ?? string.Empty;
+			if (SetProperty(ref _globalHotkey, normalized, nameof(GlobalHotkey)))
+			{
+				_settings.GlobalHotkey = normalized;
+				if (Application.Current?.MainWindow is MainWindow mainWindow)
+				{
+					mainWindow.ApplyGlobalHotkey();
+				}
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+			}
+		}
+	}
+
+	public string GlobalHotkeyError => _globalHotkeyError;
+
+	public bool HasGlobalHotkeyError => !string.IsNullOrEmpty(_globalHotkeyError);
+
+	public void SetGlobalHotkeyError(string error)
+	{
+		if (SetProperty(ref _globalHotkeyError, error, nameof(GlobalHotkeyError)))
+		{
+			OnPropertyChanged(nameof(HasGlobalHotkeyError));
 		}
 	}
 
@@ -291,11 +512,16 @@ public sealed class SettingsViewModel : ViewModelBase
 			if (SetProperty(ref _lightBackgroundImagePath, normalized, "LightBackgroundImagePath"))
 			{
 				_settings.LightBackgroundImagePath = normalized;
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				OnPropertyChanged("LightBackgroundPreview");
+				OnPropertyChanged("HasLightBackgroundPreview");
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
+
+	public ImageSource? LightBackgroundPreview => TryLoadPreview(_lightBackgroundImagePath);
+
+	public bool HasLightBackgroundPreview => !string.IsNullOrWhiteSpace(_lightBackgroundImagePath) && File.Exists(_lightBackgroundImagePath);
 
 	public BackgroundStyle LightBackgroundStyle
 	{
@@ -310,8 +536,7 @@ public sealed class SettingsViewModel : ViewModelBase
 			{
 				_settings.LightBackgroundStyle = normalized;
 				OnPropertyChanged("IsLightEffectStrengthEnabled");
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
@@ -333,8 +558,7 @@ public sealed class SettingsViewModel : ViewModelBase
 					_lightBackgroundEffectStrength = normalized;
 					OnPropertyChanged("LightBackgroundEffectStrength");
 				}
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
@@ -351,11 +575,16 @@ public sealed class SettingsViewModel : ViewModelBase
 			if (SetProperty(ref _darkBackgroundImagePath, normalized, "DarkBackgroundImagePath"))
 			{
 				_settings.DarkBackgroundImagePath = normalized;
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				OnPropertyChanged("DarkBackgroundPreview");
+				OnPropertyChanged("HasDarkBackgroundPreview");
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
+
+	public ImageSource? DarkBackgroundPreview => TryLoadPreview(_darkBackgroundImagePath);
+
+	public bool HasDarkBackgroundPreview => !string.IsNullOrWhiteSpace(_darkBackgroundImagePath) && File.Exists(_darkBackgroundImagePath);
 
 	public BackgroundStyle DarkBackgroundStyle
 	{
@@ -370,8 +599,7 @@ public sealed class SettingsViewModel : ViewModelBase
 			{
 				_settings.DarkBackgroundStyle = normalized;
 				OnPropertyChanged("IsDarkEffectStrengthEnabled");
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
@@ -393,15 +621,14 @@ public sealed class SettingsViewModel : ViewModelBase
 					_darkBackgroundEffectStrength = normalized;
 					OnPropertyChanged("DarkBackgroundEffectStrength");
 				}
-				ApplyBackgroundEffect();
-				AppServices.Storage.ScheduleSave(AppServices.Config);
+				ApplyAndSaveBackgroundEffect();
 			}
 		}
 	}
 
-	public bool IsLightEffectStrengthEnabled => LightBackgroundStyle != BackgroundStyle.ImageOnly;
+	public bool IsLightEffectStrengthEnabled => LightBackgroundStyle == BackgroundStyle.FrostedGlass || LightBackgroundStyle == BackgroundStyle.Dimmed;
 
-	public bool IsDarkEffectStrengthEnabled => DarkBackgroundStyle != BackgroundStyle.ImageOnly;
+	public bool IsDarkEffectStrengthEnabled => DarkBackgroundStyle == BackgroundStyle.FrostedGlass || DarkBackgroundStyle == BackgroundStyle.Dimmed;
 
 	public double PanelOpacity
 	{
@@ -414,7 +641,7 @@ public sealed class SettingsViewModel : ViewModelBase
 			if (SetProperty(ref _panelOpacity, value, "PanelOpacity"))
 			{
 				int fallback = _settings.IsDarkMode ? DefaultDarkPanelOpacity : DefaultLightPanelOpacity;
-				int normalized = NormalizeOpacity((int)value, fallback);
+				int normalized = Math.Clamp(NormalizeOpacity((int)value, fallback), BackgroundEffectService.MinReadablePanelOpacity, 100);
 				if (!double.Equals(_panelOpacity, normalized))
 				{
 					_panelOpacity = normalized;
@@ -456,10 +683,6 @@ public sealed class SettingsViewModel : ViewModelBase
 
 	private void ApplyUnifiedPanelOpacity(int normalizedOpacity, bool persistChanges)
 	{
-		_lightSidebarOpacity = normalizedOpacity;
-		_lightProgramOpacity = normalizedOpacity;
-		_darkSidebarOpacity = normalizedOpacity;
-		_darkProgramOpacity = normalizedOpacity;
 		_settings.LightSidebarOpacity = normalizedOpacity;
 		_settings.LightProgramOpacity = normalizedOpacity;
 		_settings.DarkSidebarOpacity = normalizedOpacity;
@@ -471,10 +694,39 @@ public sealed class SettingsViewModel : ViewModelBase
 		}
 	}
 
+	private void ApplyAndSaveBackgroundEffect()
+	{
+		ApplyBackgroundEffect();
+		AppServices.Storage.ScheduleSave(AppServices.Config);
+	}
+
 	private void ApplyBackgroundEffect()
 	{
 		Window? window = Application.Current?.MainWindow;
 		BackgroundEffectService.Apply(window, _settings);
+	}
+
+	private static ImageSource? TryLoadPreview(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+		{
+			return null;
+		}
+		try
+		{
+			BitmapImage bitmap = new BitmapImage();
+			bitmap.BeginInit();
+			bitmap.UriSource = new Uri(path, UriKind.Absolute);
+			bitmap.DecodePixelWidth = 240;
+			bitmap.CacheOption = BitmapCacheOption.OnLoad;
+			bitmap.EndInit();
+			bitmap.Freeze();
+			return bitmap;
+		}
+		catch
+		{
+			return null;
+		}
 	}
 
 	private static int NormalizeInterval(double value, int min, int max, int fallback)
@@ -520,13 +772,12 @@ public sealed class SettingsViewModel : ViewModelBase
 		int normalizedLightProgramOpacity = NormalizeOpacity((int)lightProgramOpacity, DefaultLightPanelOpacity);
 		int normalizedDarkSidebarOpacity = NormalizeOpacity((int)darkSidebarOpacity, DefaultDarkPanelOpacity);
 		int normalizedDarkProgramOpacity = NormalizeOpacity((int)darkProgramOpacity, DefaultDarkPanelOpacity);
-		if (normalizedLightSidebarOpacity == normalizedLightProgramOpacity &&
-			normalizedLightSidebarOpacity == normalizedDarkSidebarOpacity &&
-			normalizedLightSidebarOpacity == normalizedDarkProgramOpacity)
-		{
-			return normalizedLightSidebarOpacity;
-		}
-		return preferDark ? normalizedDarkSidebarOpacity : normalizedLightSidebarOpacity;
+		int resolved = (normalizedLightSidebarOpacity == normalizedLightProgramOpacity &&
+		                normalizedLightSidebarOpacity == normalizedDarkSidebarOpacity &&
+		                normalizedLightSidebarOpacity == normalizedDarkProgramOpacity)
+			? normalizedLightSidebarOpacity
+			: (preferDark ? normalizedDarkSidebarOpacity : normalizedLightSidebarOpacity);
+		return Math.Clamp(resolved, BackgroundEffectService.MinReadablePanelOpacity, 100);
 	}
 
 	private static BackgroundStyle NormalizeStyle(BackgroundStyle style)

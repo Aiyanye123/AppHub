@@ -76,6 +76,41 @@ public sealed class LaunchService
 		}
 	}
 
+	public LaunchResult ActivateRunningWindow(Guid appId)
+	{
+		ApplicationItem? app = _catalog.GetAppById(appId);
+		if (app == null)
+		{
+			return new LaunchResult
+			{
+				Success = false,
+				ErrorMessage = "\u5e94\u7528\u4e0d\u5b58\u5728\u3002"
+			};
+		}
+		ProcessStatus existingStatus = _processControl.GetRunningStatus(app.Id);
+		if (!existingStatus.IsRunning)
+		{
+			return new LaunchResult
+			{
+				Success = false,
+				ErrorMessage = "\u5e94\u7528\u672a\u8fd0\u884c\u3002"
+			};
+		}
+		if (TryActivateRunningWindow(existingStatus.MatchedProcessIds, out int focusedPid))
+		{
+			return new LaunchResult
+			{
+				Success = true,
+				ProcessId = focusedPid
+			};
+		}
+		return new LaunchResult
+		{
+			Success = false,
+			ErrorMessage = "\u68c0\u6d4b\u5230\u5e94\u7528\u5df2\u8fd0\u884c\uff0c\u4f46\u65e0\u6cd5\u5207\u6362\u5230\u5df2\u6709\u7a97\u53e3\u3002"
+		};
+	}
+
 	private LaunchResult LaunchInternal(ApplicationItem app, string args)
 	{
 		if (AppServices.Config.Settings.LaunchBehavior == LaunchBehavior.FocusExisting)
@@ -124,7 +159,7 @@ public sealed class LaunchService
 					ErrorMessage = "\u542f\u52a8\u8fdb\u7a0b\u5931\u8d25\u3002"
 				};
 			}
-			app.LastLaunchTime = DateTime.Now;
+			_catalog.RecordLaunch(app.Id);
 			if (app.TrackProcess && !isDirectory && process != null)
 			{
 				_processControl.RegisterProcess(app.Id, process.Id);
@@ -174,7 +209,10 @@ public sealed class LaunchService
 				{
 					continue;
 				}
-				ShowWindowAsync(handle, 9);
+				if (IsIconic(handle))
+				{
+					ShowWindowAsync(handle, 9);
+				}
 				SetForegroundWindow(handle);
 				focusedPid = pid;
 				return true;
@@ -186,6 +224,10 @@ public sealed class LaunchService
 		focusedPid = 0;
 		return false;
 	}
+
+	[DllImport("user32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static extern bool IsIconic(nint hWnd);
 
 	[DllImport("user32.dll")]
 	private static extern bool SetForegroundWindow(nint hWnd);

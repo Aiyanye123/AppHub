@@ -13,19 +13,22 @@ public static class BackgroundEffectService
 {
 	private const int DefaultStrength = 40;
 
+	public const int MinReadablePanelOpacity = 78;
+
 	public static void Apply(Window? window, AppSettings? settings)
 	{
 		if (window == null || settings == null)
 		{
 			return;
 		}
-		if (!TryFindWindowElements(window, out Grid? imageLayer, out Border? overlayLayer))
+		if (!TryFindWindowElements(window, out Grid? imageLayer, out Border? overlayLayer) || imageLayer == null || overlayLayer == null)
 		{
 			return;
 		}
 		BackgroundConfig config = GetActiveConfig(settings);
 		bool hasImageBackground = CanRender(config);
 		ApplyPanelOpacity(settings, hasImageBackground);
+		ApplyContrastSubtleText(settings.IsDarkMode, hasImageBackground);
 		ApplyScrollBarStyle(settings.IsDarkMode, hasImageBackground);
 		if (!hasImageBackground)
 		{
@@ -42,19 +45,26 @@ public static class BackgroundEffectService
 		switch (config.Style)
 		{
 		case BackgroundStyle.ImageOnly:
-			overlayLayer.Background = Brushes.Transparent;
+			overlayLayer.Background = new SolidColorBrush(
+				settings.IsDarkMode
+					? Color.FromArgb(40, 6, 16, 29)
+					: Color.FromArgb(28, 255, 255, 255));
 			overlayLayer.Effect = null;
 			break;
 		case BackgroundStyle.FrostedGlass:
 			imageLayer.Effect = new BlurEffect
 			{
-				Radius = 1.0 + strength / 100.0 * 16.0
+				Radius = 2.0 + strength / 100.0 * 18.0
 			};
-			overlayLayer.Background = new SolidColorBrush(Color.FromArgb((byte)(18 + strength), 255, 255, 255));
+			overlayLayer.Background = new SolidColorBrush(
+				settings.IsDarkMode
+					? Color.FromArgb((byte)Math.Clamp(36 + strength, 0, 220), 8, 18, 32)
+					: Color.FromArgb((byte)Math.Clamp(36 + strength, 0, 220), 255, 255, 255));
 			overlayLayer.Effect = null;
 			break;
 		case BackgroundStyle.Dimmed:
-			overlayLayer.Background = new SolidColorBrush(Color.FromArgb((byte)(18 + strength), 10, 18, 30));
+			overlayLayer.Background = new SolidColorBrush(
+				Color.FromArgb((byte)Math.Clamp(28 + strength, 0, 230), 10, 18, 30));
 			overlayLayer.Effect = null;
 			break;
 		default:
@@ -120,9 +130,9 @@ public static class BackgroundEffectService
 		{
 			return;
 		}
-		if (resources.Contains("PageRootBgBrush") && resources["PageRootBgBrush"] is SolidColorBrush brush)
+		Color target = isTransparent ? Colors.Transparent : ResolveAppBgColor(resources);
+		if (resources["PageRootBgBrush"] is SolidColorBrush brush)
 		{
-			Color target = isTransparent ? Colors.Transparent : ResolveAppBgColor(resources);
 			if (!brush.IsFrozen)
 			{
 				brush.Color = target;
@@ -135,16 +145,16 @@ public static class BackgroundEffectService
 			}
 			return;
 		}
-		resources["PageRootBgBrush"] = new SolidColorBrush(isTransparent ? Colors.Transparent : ResolveAppBgColor(resources));
+		resources["PageRootBgBrush"] = new SolidColorBrush(target);
 	}
 
 	private static Color ResolveAppBgColor(ResourceDictionary resources)
 	{
-		if (resources.Contains("AppBgBrush") && resources["AppBgBrush"] is SolidColorBrush appBg)
+		if (resources["AppBgBrush"] is SolidColorBrush appBg)
 		{
 			return appBg.Color;
 		}
-		return (Color)ColorConverter.ConvertFromString("#FAFAFA");
+		return (Color)ColorConverter.ConvertFromString("#F4F7FB");
 	}
 
 	private static void ApplyPanelOpacity(AppSettings settings, bool hasImageBackground)
@@ -154,11 +164,36 @@ public static class BackgroundEffectService
 		{
 			return;
 		}
-		int sidebarOpacity = hasImageBackground ? (settings.IsDarkMode ? NormalizeOpacity(settings.DarkSidebarOpacity, fallback: 88) : NormalizeOpacity(settings.LightSidebarOpacity, fallback: 92)) : 100;
-		int programOpacity = hasImageBackground ? (settings.IsDarkMode ? NormalizeOpacity(settings.DarkProgramOpacity, fallback: 88) : NormalizeOpacity(settings.LightProgramOpacity, fallback: 92)) : 100;
+		int sidebarOpacity = hasImageBackground
+			? Math.Max(MinReadablePanelOpacity, settings.IsDarkMode ? NormalizeOpacity(settings.DarkSidebarOpacity, fallback: 88) : NormalizeOpacity(settings.LightSidebarOpacity, fallback: 92))
+			: 100;
+		int programOpacity = hasImageBackground
+			? Math.Max(MinReadablePanelOpacity, settings.IsDarkMode ? NormalizeOpacity(settings.DarkProgramOpacity, fallback: 88) : NormalizeOpacity(settings.LightProgramOpacity, fallback: 92))
+			: 100;
 		Color baseColor = ResolveCardBgColor(resources, settings.IsDarkMode);
 		SetBrushWithOpacity(resources, "SidebarBgBrush", baseColor, sidebarOpacity);
 		SetBrushWithOpacity(resources, "ProgramCardBgBrush", baseColor, programOpacity);
+	}
+
+	private static void ApplyContrastSubtleText(bool isDarkMode, bool hasImageBackground)
+	{
+		ResourceDictionary? resources = Application.Current?.Resources;
+		if (resources == null)
+		{
+			return;
+		}
+		string hex = isDarkMode
+			? (hasImageBackground ? "#AFC2DE" : "#94A8C6")
+			: (hasImageBackground ? "#334155" : "#475569");
+		Color target = (Color)ColorConverter.ConvertFromString(hex);
+		if (resources["SubtleTextBrush"] is SolidColorBrush brush && !brush.IsFrozen)
+		{
+			brush.Color = target;
+		}
+		else
+		{
+			resources["SubtleTextBrush"] = new SolidColorBrush(target);
+		}
 	}
 
 	private static void ApplyScrollBarStyle(bool isDarkMode, bool hasImageBackground)
@@ -183,18 +218,18 @@ public static class BackgroundEffectService
 
 	private static Color ResolveCardBgColor(ResourceDictionary resources, bool isDark)
 	{
-		if (resources.Contains("CardBgBrush") && resources["CardBgBrush"] is SolidColorBrush cardBrush)
+		if (resources["CardBgBrush"] is SolidColorBrush cardBrush)
 		{
 			return Color.FromRgb(cardBrush.Color.R, cardBrush.Color.G, cardBrush.Color.B);
 		}
-		return (Color)ColorConverter.ConvertFromString(isDark ? "#0F172A" : "#FFFFFF");
+		return (Color)ColorConverter.ConvertFromString(isDark ? "#101A2B" : "#FFFFFF");
 	}
 
 	private static void SetBrushWithOpacity(ResourceDictionary resources, string key, Color baseColor, int opacityPercent)
 	{
 		byte alpha = (byte)Math.Clamp((int)Math.Round(opacityPercent * 2.55), 0, 255);
 		Color target = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
-		if (resources.Contains(key) && resources[key] is SolidColorBrush brush)
+		if (resources[key] is SolidColorBrush brush)
 		{
 			if (!brush.IsFrozen)
 			{
@@ -214,7 +249,7 @@ public static class BackgroundEffectService
 	private static void UpdateAlphaBrush(ResourceDictionary resources, string key, byte r, byte g, byte b, byte a)
 	{
 		Color target = Color.FromArgb(a, r, g, b);
-		if (resources.Contains(key) && resources[key] is SolidColorBrush brush)
+		if (resources[key] is SolidColorBrush brush)
 		{
 			if (!brush.IsFrozen)
 			{

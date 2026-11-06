@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using AppHub.Infrastructure;
 using AppHub.Models;
 using Microsoft.Win32;
+using WinForms = System.Windows.Forms;
 
 namespace AppHub.Views.Dialogs;
 
@@ -14,30 +17,77 @@ public partial class EditAppDialog : Window
 
 	public IReadOnlyList<string> AvailableGroupNames { get; }
 
-	public EditAppDialog(ApplicationItem model, IReadOnlyList<string>? availableGroupNames = null)
+	public EditAppDialog(ApplicationItem model, IReadOnlyList<string>? availableGroupNames = null, bool isAddingNew = false)
 	{
-		AvailableGroupNames = (availableGroupNames ?? Array.Empty<string>()).Where((string groupName) => !string.IsNullOrWhiteSpace(groupName))
+		AvailableGroupNames = (availableGroupNames ?? Array.Empty<string>())
+			.Where((string groupName) => !string.IsNullOrWhiteSpace(groupName))
 			.Select((string groupName) => groupName.Trim())
 			.Distinct(StringComparer.OrdinalIgnoreCase)
 			.OrderBy((string groupName) => groupName, StringComparer.OrdinalIgnoreCase)
 			.ToList();
 		InitializeComponent();
+		base.SourceInitialized += OnSourceInitialized;
 		EditedItem = model.Clone();
 		base.DataContext = EditedItem;
-		UpdateIconModeText();
+
+		if (isAddingNew)
+		{
+			Title = "添加应用";
+			DialogHeaderIcon.Text = "\uE710";
+			DialogHeaderTitle.Text = "添加应用配置";
+			SaveButton.Content = "完成添加";
+		}
+
+		if (!string.IsNullOrWhiteSpace(EditedItem.Arguments))
+		{
+			AdvancedExpander.IsExpanded = true;
+		}
+
+		UpdateIconPreview();
+	}
+
+	private void OnSourceInitialized(object? sender, EventArgs e)
+	{
+		ThemeService.ApplyWindowChromeTheme(this, AppServices.Config.Settings.IsDarkMode);
+	}
+
+	private void OnDisplayNameTextChanged(object sender, TextChangedEventArgs e)
+	{
+		if (DisplayNameErrorText != null && !string.IsNullOrWhiteSpace(DisplayNameBox.Text))
+		{
+			DisplayNameErrorText.Visibility = Visibility.Collapsed;
+		}
+	}
+
+	private void OnTargetPathTextChanged(object sender, TextChangedEventArgs e)
+	{
+		if (TargetPathErrorText != null && !string.IsNullOrWhiteSpace(TargetPathBox.Text))
+		{
+			TargetPathErrorText.Visibility = Visibility.Collapsed;
+		}
 	}
 
 	private void OnSave(object sender, RoutedEventArgs e)
 	{
 		NormalizeEditedItem();
+		bool hasError = false;
 		if (string.IsNullOrWhiteSpace(EditedItem.DisplayName))
 		{
-			MessageBox.Show("\u8bf7\u8f93\u5165\u5e94\u7528\u540d\u79f0\u3002", "\u7f3a\u5c11\u5fc5\u586b\u9879", MessageBoxButton.OK, MessageBoxImage.Warning);
-			return;
+			DisplayNameErrorText.Visibility = Visibility.Visible;
+			DisplayNameBox.Focus();
+			hasError = true;
 		}
 		if (string.IsNullOrWhiteSpace(EditedItem.TargetPath))
 		{
-			MessageBox.Show("\u8bf7\u8f93\u5165\u76ee\u6807\u8def\u5f84\u3002", "\u7f3a\u5c11\u5fc5\u586b\u9879", MessageBoxButton.OK, MessageBoxImage.Warning);
+			TargetPathErrorText.Visibility = Visibility.Visible;
+			if (!hasError)
+			{
+				TargetPathBox.Focus();
+			}
+			hasError = true;
+		}
+		if (hasError)
+		{
 			return;
 		}
 		base.DialogResult = true;
@@ -50,11 +100,93 @@ public partial class EditAppDialog : Window
 		Close();
 	}
 
+	private void OnBrowseTargetFile(object sender, RoutedEventArgs e)
+	{
+		OpenFileDialog dialog = new OpenFileDialog
+		{
+			Title = "选择目标程序",
+			Filter = "应用程序 (*.exe;*.lnk;*.bat)|*.exe;*.lnk;*.bat|所有文件 (*.*)|*.*",
+			Multiselect = false
+		};
+		if (!string.IsNullOrWhiteSpace(EditedItem.TargetPath))
+		{
+			string? dir = Path.GetDirectoryName(EditedItem.TargetPath);
+			if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+			{
+				dialog.InitialDirectory = dir;
+			}
+		}
+		if (dialog.ShowDialog(this) == true)
+		{
+			EditedItem.TargetPath = dialog.FileName;
+			TargetPathBox.Text = dialog.FileName;
+			if (string.IsNullOrWhiteSpace(EditedItem.DisplayName))
+			{
+				string name = Path.GetFileNameWithoutExtension(dialog.FileName);
+				EditedItem.DisplayName = name;
+				DisplayNameBox.Text = name;
+			}
+			if (string.IsNullOrWhiteSpace(EditedItem.WorkingDirectory))
+			{
+				string workDir = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+				EditedItem.WorkingDirectory = workDir;
+				WorkingDirectoryBox.Text = workDir;
+			}
+			UpdateIconPreview();
+		}
+	}
+
+	private void OnBrowseTargetFolder(object sender, RoutedEventArgs e)
+	{
+		using WinForms.FolderBrowserDialog dialog = new WinForms.FolderBrowserDialog
+		{
+			Description = "选择目标文件夹",
+			UseDescriptionForTitle = true
+		};
+		if (!string.IsNullOrWhiteSpace(EditedItem.TargetPath) && Directory.Exists(EditedItem.TargetPath))
+		{
+			dialog.InitialDirectory = EditedItem.TargetPath;
+		}
+		if (dialog.ShowDialog() == WinForms.DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+		{
+			EditedItem.TargetPath = dialog.SelectedPath;
+			EditedItem.SourceType = SourceType.Folder;
+			EditedItem.TrackProcess = false;
+			TargetPathBox.Text = dialog.SelectedPath;
+			if (string.IsNullOrWhiteSpace(EditedItem.DisplayName))
+			{
+				string name = new DirectoryInfo(dialog.SelectedPath).Name;
+				EditedItem.DisplayName = name;
+				DisplayNameBox.Text = name;
+			}
+			UpdateIconPreview();
+		}
+	}
+
+	private void OnBrowseWorkingDirectory(object sender, RoutedEventArgs e)
+	{
+		using WinForms.FolderBrowserDialog dialog = new WinForms.FolderBrowserDialog
+		{
+			Description = "选择工作目录",
+			UseDescriptionForTitle = true
+		};
+		if (!string.IsNullOrWhiteSpace(EditedItem.WorkingDirectory) && Directory.Exists(EditedItem.WorkingDirectory))
+		{
+			dialog.InitialDirectory = EditedItem.WorkingDirectory;
+		}
+		if (dialog.ShowDialog() == WinForms.DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
+		{
+			EditedItem.WorkingDirectory = dialog.SelectedPath;
+			WorkingDirectoryBox.Text = dialog.SelectedPath;
+		}
+	}
+
 	private void OnBrowseCustomIcon(object sender, RoutedEventArgs e)
 	{
 		OpenFileDialog dialog = new OpenFileDialog
 		{
-			Filter = "Image Files (*.png;*.ico;*.jpg;*.jpeg;*.bmp)|*.png;*.ico;*.jpg;*.jpeg;*.bmp",
+			Title = "选择自定义图标",
+			Filter = "图标文件 (*.png;*.ico;*.jpg;*.jpeg;*.bmp)|*.png;*.ico;*.jpg;*.jpeg;*.bmp",
 			Multiselect = false
 		};
 		if (!string.IsNullOrWhiteSpace(EditedItem.CustomIconPath))
@@ -69,8 +201,7 @@ public partial class EditAppDialog : Window
 		{
 			EditedItem.IconSource = IconSource.Custom;
 			EditedItem.CustomIconPath = dialog.FileName;
-			CustomIconPathBox.Text = dialog.FileName;
-			UpdateIconModeText();
+			UpdateIconPreview();
 		}
 	}
 
@@ -78,8 +209,7 @@ public partial class EditAppDialog : Window
 	{
 		EditedItem.IconSource = IconSource.Auto;
 		EditedItem.CustomIconPath = null;
-		CustomIconPathBox.Text = string.Empty;
-		UpdateIconModeText();
+		UpdateIconPreview();
 	}
 
 	private void NormalizeEditedItem()
@@ -96,9 +226,21 @@ public partial class EditAppDialog : Window
 		}
 	}
 
-	private void UpdateIconModeText()
+	private void UpdateIconPreview()
 	{
 		bool hasCustomIcon = EditedItem.IconSource == IconSource.Custom && !string.IsNullOrWhiteSpace(EditedItem.CustomIconPath);
-		IconModeText.Text = hasCustomIcon ? "\u5f53\u524d\uff1a\u4f7f\u7528\u81ea\u5b9a\u4e49\u56fe\u6807" : "\u5f53\u524d\uff1a\u81ea\u52a8\u63d0\u53d6\u5e94\u7528\u56fe\u6807";
+		IconModeText.Text = hasCustomIcon ? "当前：使用自定义图标" : "当前：自动提取应用图标";
+		IconPathHintText.Text = hasCustomIcon
+			? EditedItem.CustomIconPath
+			: "支持 PNG / ICO / JPG 自定义图标";
+		ResetIconButton.Visibility = hasCustomIcon ? Visibility.Visible : Visibility.Collapsed;
+		try
+		{
+			IconPreviewImage.Source = AppServices.IconService.GetIcon(EditedItem);
+		}
+		catch
+		{
+			IconPreviewImage.Source = null;
+		}
 	}
 }

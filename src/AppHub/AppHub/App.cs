@@ -1,6 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using AppHub.Infrastructure;
@@ -11,11 +11,11 @@ public partial class App : Application
 {
 	private const string SingleInstanceMutexName = @"Local\AppHub.SingleInstance";
 
-	private const string ShowWindowEventName = @"Local\AppHub.ShowWindow";
-
 	private Mutex? _singleInstanceMutex;
 
-	private EventWaitHandle? _showWindowEvent;
+	private SingleInstanceService? _singleInstanceService;
+
+	private JumpListService? _jumpListService;
 
 	private bool _ownsSingleInstanceMutex;
 
@@ -37,24 +37,32 @@ public partial class App : Application
 		AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 	}
 
-	private void OnStartup(object sender, StartupEventArgs e)
+	private async void OnStartup(object sender, StartupEventArgs e)
 	{
+		CommandLineOptions options = CommandLineOptions.Parse(e.Args);
 		_singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
 		if (!createdNew)
 		{
-			SignalExistingInstance();
+			try
+			{
+				await SingleInstanceService.SendAsync(options.LaunchAppId);
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show($"无法联系已运行的 AppHub。\n{ex.Message}", "AppHub", MessageBoxButton.OK, MessageBoxImage.Warning);
+			}
 			_singleInstanceMutex.Dispose();
 			_singleInstanceMutex = null;
 			Shutdown();
 			return;
 		}
 		_ownsSingleInstanceMutex = true;
-		_showWindowEvent = new EventWaitHandle(initialState: false, EventResetMode.AutoReset, ShowWindowEventName);
+		ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
 		AppServices.Initialize();
 		_servicesInitialized = true;
-		CommandLineOptions options = CommandLineOptions.Parse(Environment.GetCommandLineArgs());
 		AppServices.ApplyCommandLine(options);
+		_singleInstanceService = new SingleInstanceService(QueueInstanceCommand, OnSingleInstanceError);
 		MainWindow window = (MainWindow)(base.MainWindow = new MainWindow());
 		window.Topmost = AppServices.Config.Settings.AlwaysOnTop;
 		ThemeService.ApplyTheme(AppServices.Config.Settings.IsDarkMode);
@@ -62,62 +70,88 @@ public partial class App : Application
 		_trayIconService = new TrayIconService(window);
 		_trayIconService.BackgroundModeChanged += OnBackgroundModeChanged;
 		TrayIconService = _trayIconService;
-		StartShowWindowListener();
-		if (options.StartInBackground)
+		_jumpListService = new JumpListService(_trayIconService);
+		if (options.StartInBackground || options.LaunchAppId.HasValue)
 		{
-			_trayIconService.HideToTray();
+			_trayIconService.HideToTray(showHint: false);
 		}
 		else
 		{
 			window.Show();
 		}
 		AppServices.StatusScheduler.Start();
+		if (options.LaunchAppId.HasValue)
+		{
+			await LaunchAppAsync(options.LaunchAppId.Value);
+		}
 	}
 
 	private void OnExit(object sender, ExitEventArgs e)
 	{
 		_isExiting = true;
-		_showWindowEvent?.Set();
+		_singleInstanceService?.Dispose();
+		_jumpListService?.Dispose();
+		if (_trayIconService != null)
+		{
+			_trayIconService.BackgroundModeChanged -= OnBackgroundModeChanged;
+			_trayIconService.Dispose();
+			TrayIconService = null;
+		}
 		if (_servicesInitialized)
 		{
 			AppServices.StatusScheduler.Dispose();
 			AppServices.Storage.Dispose();
-		}
-		if (_trayIconService != null)
-		{
-			_trayIconService.BackgroundModeChanged -= OnBackgroundModeChanged;
 		}
 		if (_ownsSingleInstanceMutex)
 		{
 			_singleInstanceMutex?.ReleaseMutex();
 		}
 		_singleInstanceMutex?.Dispose();
-		_showWindowEvent?.Dispose();
 	}
 
-	private static void SignalExistingInstance()
+	private void QueueInstanceCommand(Guid? appId)
 	{
-		using EventWaitHandle showWindowEvent = new EventWaitHandle(initialState: false, EventResetMode.AutoReset, ShowWindowEventName);
-		showWindowEvent.Set();
-	}
-
-	private void StartShowWindowListener()
-	{
-		Thread thread = new Thread(delegate()
+		if (_isExiting || Dispatcher.HasShutdownStarted)
 		{
-			while (!_isExiting)
+			return;
+		}
+		Dispatcher.BeginInvoke((Action)(() => HandleInstanceCommand(appId)));
+	}
+
+	private async void HandleInstanceCommand(Guid? appId)
+	{
+		if (_isExiting)
+		{
+			return;
+		}
+		if (appId.HasValue)
+		{
+			await LaunchAppAsync(appId.Value);
+		}
+		else
+		{
+			RestoreMainWindow();
+		}
+	}
+
+	private async Task LaunchAppAsync(Guid appId)
+	{
+		try
+		{
+			if (_trayIconService != null)
 			{
-				_showWindowEvent?.WaitOne();
-				if (!_isExiting)
-				{
-					Dispatcher.Invoke(RestoreMainWindow);
-				}
+				await _trayIconService.LaunchAppAsync(appId);
 			}
-		})
+		}
+		catch (Exception ex)
 		{
-			IsBackground = true
-		};
-		thread.Start();
+			AppServices.Logger.Error($"Jump List launch failed: {appId}", ex);
+		}
+	}
+
+	private void OnSingleInstanceError(Exception exception)
+	{
+		AppServices.Logger.Error("Single-instance communication failed", exception);
 	}
 
 	private void RestoreMainWindow()

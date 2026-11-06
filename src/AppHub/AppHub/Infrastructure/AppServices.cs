@@ -10,6 +10,13 @@ public static class AppServices
 {
 	private static bool _initialized;
 
+	public static event EventHandler? TraySettingsChanged;
+
+	public static void NotifyTraySettingsChanged()
+	{
+		TraySettingsChanged?.Invoke(null, EventArgs.Empty);
+	}
+
 	public static StorageService Storage { get; private set; }
 
 	public static AppConfig Config { get; private set; }
@@ -67,79 +74,25 @@ public static class AppServices
 		}
 		if (Config.SchemaVersion < 2)
 		{
-			foreach (ApplicationItem app in Config.Apps)
-			{
-				app.GroupStates ??= new Dictionary<string, ApplicationGroupState>();
-				Dictionary<string, ApplicationGroupState> normalized = new Dictionary<string, ApplicationGroupState>();
-				foreach (KeyValuePair<string, ApplicationGroupState> pair in app.GroupStates)
-				{
-					string scope = AppGroupScope.Normalize(pair.Key);
-					normalized[scope] = new ApplicationGroupState
-					{
-						IsPinned = pair.Value?.IsPinned ?? false
-					};
-				}
-				app.GroupStates = normalized;
-				if (app.IsPinned && !app.GetPinned(AppGroupScope.AllGroups))
-				{
-					app.SetPinned(AppGroupScope.AllGroups, isPinned: true);
-				}
-			}
+			MigrateToVersion2();
 			Config.SchemaVersion = 2;
 			changed = true;
 		}
 		if (Config.SchemaVersion < 3)
 		{
-			if (Config.Settings.BackgroundEffectStrength < 0 || Config.Settings.BackgroundEffectStrength > 100)
-			{
-				Config.Settings.BackgroundEffectStrength = 40;
-			}
-			if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.BackgroundStyle))
-			{
-				Config.Settings.BackgroundStyle = BackgroundStyle.None;
-			}
+			MigrateToVersion3();
 			Config.SchemaVersion = 3;
 			changed = true;
 		}
 		if (Config.SchemaVersion < 4)
 		{
-			if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.LightBackgroundStyle))
-			{
-				Config.Settings.LightBackgroundStyle = BackgroundStyle.None;
-			}
-			if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.DarkBackgroundStyle))
-			{
-				Config.Settings.DarkBackgroundStyle = BackgroundStyle.None;
-			}
-			if (Config.Settings.LightBackgroundEffectStrength < 0 || Config.Settings.LightBackgroundEffectStrength > 100)
-			{
-				Config.Settings.LightBackgroundEffectStrength = 40;
-			}
-			if (Config.Settings.DarkBackgroundEffectStrength < 0 || Config.Settings.DarkBackgroundEffectStrength > 100)
-			{
-				Config.Settings.DarkBackgroundEffectStrength = 40;
-			}
-			if (!string.IsNullOrWhiteSpace(Config.Settings.BackgroundImagePath) && string.IsNullOrWhiteSpace(Config.Settings.LightBackgroundImagePath))
-			{
-				Config.Settings.LightBackgroundImagePath = Config.Settings.BackgroundImagePath;
-			}
-			if (Config.Settings.LightBackgroundStyle == BackgroundStyle.None && Config.Settings.BackgroundStyle != BackgroundStyle.None)
-			{
-				Config.Settings.LightBackgroundStyle = Config.Settings.BackgroundStyle;
-			}
-			if (Config.Settings.LightBackgroundEffectStrength == 40 && Config.Settings.BackgroundEffectStrength != 40)
-			{
-				Config.Settings.LightBackgroundEffectStrength = Config.Settings.BackgroundEffectStrength;
-			}
+			MigrateToVersion4();
 			Config.SchemaVersion = 4;
 			changed = true;
 		}
 		if (Config.SchemaVersion < 5)
 		{
-			Config.Settings.LightSidebarOpacity = 92;
-			Config.Settings.LightProgramOpacity = 92;
-			Config.Settings.DarkSidebarOpacity = 88;
-			Config.Settings.DarkProgramOpacity = 88;
+			MigrateToVersion5();
 			Config.SchemaVersion = 5;
 			changed = true;
 		}
@@ -152,6 +105,80 @@ public static class AppServices
 		{
 			Storage.Save(Config);
 		}
+	}
+
+	private static void MigrateToVersion2()
+	{
+		foreach (ApplicationItem app in Config.Apps)
+		{
+			app.GroupStates ??= new Dictionary<string, ApplicationGroupState>();
+			Dictionary<string, ApplicationGroupState> normalized = new Dictionary<string, ApplicationGroupState>();
+			foreach (KeyValuePair<string, ApplicationGroupState> pair in app.GroupStates)
+			{
+				string scope = AppGroupScope.Normalize(pair.Key);
+				normalized[scope] = new ApplicationGroupState
+				{
+					IsPinned = pair.Value?.IsPinned ?? false
+				};
+			}
+			app.GroupStates = normalized;
+			if (app.IsPinned && !app.GetPinned(AppGroupScope.AllGroups))
+			{
+				app.SetPinned(AppGroupScope.AllGroups, isPinned: true);
+			}
+		}
+	}
+
+	private static void MigrateToVersion3()
+	{
+		if (Config.Settings.BackgroundEffectStrength < 0 || Config.Settings.BackgroundEffectStrength > 100)
+		{
+			Config.Settings.BackgroundEffectStrength = 40;
+		}
+		if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.BackgroundStyle))
+		{
+			Config.Settings.BackgroundStyle = BackgroundStyle.None;
+		}
+	}
+
+	private static void MigrateToVersion4()
+	{
+		if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.LightBackgroundStyle))
+		{
+			Config.Settings.LightBackgroundStyle = BackgroundStyle.None;
+		}
+		if (!Enum.IsDefined(typeof(BackgroundStyle), Config.Settings.DarkBackgroundStyle))
+		{
+			Config.Settings.DarkBackgroundStyle = BackgroundStyle.None;
+		}
+		if (Config.Settings.LightBackgroundEffectStrength < 0 || Config.Settings.LightBackgroundEffectStrength > 100)
+		{
+			Config.Settings.LightBackgroundEffectStrength = 40;
+		}
+		if (Config.Settings.DarkBackgroundEffectStrength < 0 || Config.Settings.DarkBackgroundEffectStrength > 100)
+		{
+			Config.Settings.DarkBackgroundEffectStrength = 40;
+		}
+		if (!string.IsNullOrWhiteSpace(Config.Settings.BackgroundImagePath) && string.IsNullOrWhiteSpace(Config.Settings.LightBackgroundImagePath))
+		{
+			Config.Settings.LightBackgroundImagePath = Config.Settings.BackgroundImagePath;
+		}
+		if (Config.Settings.LightBackgroundStyle == BackgroundStyle.None && Config.Settings.BackgroundStyle != BackgroundStyle.None)
+		{
+			Config.Settings.LightBackgroundStyle = Config.Settings.BackgroundStyle;
+		}
+		if (Config.Settings.LightBackgroundEffectStrength == 40 && Config.Settings.BackgroundEffectStrength != 40)
+		{
+			Config.Settings.LightBackgroundEffectStrength = Config.Settings.BackgroundEffectStrength;
+		}
+	}
+
+	private static void MigrateToVersion5()
+	{
+		Config.Settings.LightSidebarOpacity = 92;
+		Config.Settings.LightProgramOpacity = 92;
+		Config.Settings.DarkSidebarOpacity = 88;
+		Config.Settings.DarkProgramOpacity = 88;
 	}
 
 	public static void ApplyCommandLine(CommandLineOptions options)

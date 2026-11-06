@@ -14,19 +14,19 @@ namespace AppHub.ViewModels;
 
 public sealed class OverviewViewModel : ViewModelBase
 {
-	private const string AllGroupsOption = "\u5168\u90e8\u5206\u7ec4";
+	public const string AllGroupsOption = "全部分组";
 
-	private const string SortManualOption = "\u624b\u52a8";
+	public const string SortManualOption = "手动";
 
-	private const string SortByNameOption = "\u5b57\u6bcd";
+	public const string SortByNameOption = "字母";
 
-	private const string SortByRunningOption = "\u8fd0\u884c";
+	public const string SortByRunningOption = "运行";
 
-	private const string SortByGroupOption = "\u5206\u7ec4";
+	public const string SortByGroupOption = "分组";
 
-	private const string SortAscendingOption = "\u5347\u5e8f";
+	public const string SortAscendingOption = "升序";
 
-	private const string SortDescendingOption = "\u964d\u5e8f";
+	public const string SortDescendingOption = "降序";
 
 	private readonly AppCatalogService _catalog;
 
@@ -50,7 +50,15 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private string _selectedSortDirection = SortAscendingOption;
 
+	private bool _isRunningFilterActive;
+
 	private bool _isDarkMode;
+
+	private bool _isCompactMode;
+
+	private bool _isGridView;
+
+	private bool _isInspectorOpen;
 
 	private int _deferRefreshDepth;
 
@@ -76,6 +84,24 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	public IRelayCommand ClearSelectionCommand { get; }
 
+	public IRelayCommand ClearSearchCommand { get; }
+
+	public IRelayCommand ClearFiltersCommand { get; }
+
+	public IRelayCommand ToggleRunningFilterCommand { get; }
+
+	public IRelayCommand ShowAllAppsCommand { get; }
+
+	public IRelayCommand ToggleSortDirectionCommand { get; }
+
+	public IRelayCommand ToggleInspectorCommand { get; }
+
+	public IRelayCommand CloseInspectorCommand { get; }
+
+	public IRelayCommand ToggleCompactModeCommand { get; }
+
+	public IRelayCommand ToggleViewModeCommand { get; }
+
 	public string SearchQuery
 	{
 		get
@@ -88,9 +114,32 @@ public sealed class OverviewViewModel : ViewModelBase
 			{
 				RequestDisplayRefresh();
 				OnPropertyChanged("CanReorder");
+				OnPropertyChanged("HasSearchQuery");
+				OnPropertyChanged("HasActiveFilter");
 			}
 		}
 	}
+
+	public bool HasSearchQuery => !string.IsNullOrWhiteSpace(_searchQuery);
+
+	public bool IsRunningFilterActive
+	{
+		get
+		{
+			return _isRunningFilterActive;
+		}
+		set
+		{
+			if (SetProperty(ref _isRunningFilterActive, value, "IsRunningFilterActive"))
+			{
+				RequestDisplayRefresh();
+				OnPropertyChanged("CanReorder");
+				OnPropertyChanged("HasActiveFilter");
+			}
+		}
+	}
+
+	public bool HasActiveFilter => HasSearchQuery || !IsAllGroupsSelected || IsRunningFilterActive;
 
 	public bool IsDarkMode
 	{
@@ -105,11 +154,59 @@ public sealed class OverviewViewModel : ViewModelBase
 				_settings.IsDarkMode = value;
 				ThemeService.ApplyTheme(value);
 				BackgroundEffectService.Apply(Application.Current?.MainWindow, _settings);
+				if (Application.Current?.MainWindow is MainWindow mainWin)
+				{
+					mainWin.SyncThemeButtonVisual();
+				}
 				AppServices.Storage.ScheduleSave(AppServices.Config);
 				OnPropertyChanged("ThemeToggleText");
 			}
 		}
 	}
+
+	public bool IsCompactMode
+	{
+		get
+		{
+			return _isCompactMode;
+		}
+		set
+		{
+			if (SetProperty(ref _isCompactMode, value, "IsCompactMode"))
+			{
+				_settings.IsCompactList = value;
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+				OnPropertyChanged("CompactModeTooltip");
+			}
+		}
+	}
+
+	public string CompactModeTooltip => IsCompactMode ? "当前：紧凑列表（点击切换舒适模式）" : "当前：舒适列表（点击切换紧凑模式）";
+
+	public bool IsGridView
+	{
+		get
+		{
+			return _isGridView;
+		}
+		set
+		{
+			if (SetProperty(ref _isGridView, value, "IsGridView"))
+			{
+				_settings.IsGridView = value;
+				AppServices.Storage.ScheduleSave(AppServices.Config);
+				OnPropertyChanged("IsListView");
+				OnPropertyChanged("ViewModeGlyph");
+				OnPropertyChanged("ViewModeTooltip");
+			}
+		}
+	}
+
+	public bool IsListView => !IsGridView;
+
+	public string ViewModeGlyph => IsGridView ? "\uE8FD" : "\uF0E2";
+
+	public string ViewModeTooltip => IsGridView ? "切换为列表视图" : "切换为磁贴网格视图";
 
 	public string SelectedGroup
 	{
@@ -125,6 +222,7 @@ public sealed class OverviewViewModel : ViewModelBase
 				ApplyActiveGroupScopeToApps();
 				RequestDisplayRefresh();
 				OnPropertyChanged("CanReorder");
+				OnPropertyChanged("HasActiveFilter");
 			}
 		}
 	}
@@ -161,11 +259,20 @@ public sealed class OverviewViewModel : ViewModelBase
 			if (SetProperty(ref _selectedSortDirection, normalized, "SelectedSortDirection"))
 			{
 				RequestDisplayRefresh();
+				OnPropertyChanged("IsSortDescending");
+				OnPropertyChanged("SortDirectionGlyph");
+				OnPropertyChanged("SortDirectionTooltip");
 			}
 		}
 	}
 
-	public bool CanReorder => string.IsNullOrWhiteSpace(SearchQuery) && IsAllGroupsSelected && IsManualSortSelected;
+	public bool IsSortDescending => string.Equals(SelectedSortDirection, SortDescendingOption, StringComparison.Ordinal);
+
+	public string SortDirectionGlyph => IsSortDescending ? "\uE74B" : "\uE74A";
+
+	public string SortDirectionTooltip => IsSortDescending ? "当前：降序（点击切换升序）" : "当前：升序（点击切换降序）";
+
+	public bool CanReorder => string.IsNullOrWhiteSpace(SearchQuery) && IsAllGroupsSelected && IsManualSortSelected && !IsRunningFilterActive;
 
 	public bool IsSortDirectionVisible => !IsManualSortSelected;
 
@@ -175,9 +282,13 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	public bool IsEmpty => !_displayFilteredApps.Any();
 
-	public int TotalCount => _displayFilteredApps.Count;
+	public bool HasNoApps => Apps.Count == 0;
 
-	public int RunningCount => _displayFilteredApps.Count((AppItemViewModel app) => app.IsRunning);
+	public bool IsFilterEmpty => Apps.Count > 0 && !_displayFilteredApps.Any();
+
+	public int TotalCount => Apps.Count;
+
+	public int RunningCount => Apps.Count((AppItemViewModel app) => app.IsRunning);
 
 	public int PinnedCount => _displayFilteredApps.Count((AppItemViewModel app) => app.IsPinned);
 
@@ -190,7 +301,21 @@ public sealed class OverviewViewModel : ViewModelBase
 		}
 	}
 
-	public string VisibleCountText => $"\u663e\u793a {_displayFilteredApps.Count} \u4e2a\u5e94\u7528";
+	public string VisibleCountText
+	{
+		get
+		{
+			if (HasActiveFilter)
+			{
+				return $"显示 {_displayFilteredApps.Count} / {Apps.Count} 个应用";
+			}
+			if (CanReorder)
+			{
+				return $"共 {_displayFilteredApps.Count} 个应用 · 可拖拽调整顺序";
+			}
+			return $"共 {_displayFilteredApps.Count} 个应用";
+		}
+	}
 
 	public AppItemViewModel? SelectedApp
 	{
@@ -206,14 +331,39 @@ public sealed class OverviewViewModel : ViewModelBase
 				{
 					_selectionDismissed = false;
 				}
+				else
+				{
+					IsInspectorOpen = false;
+				}
 				OnPropertyChanged("HasSelectedApp");
+				OnPropertyChanged("ShowInspector");
 			}
 		}
 	}
 
 	public bool HasSelectedApp => SelectedApp != null;
 
-	public string ThemeToggleText => IsDarkMode ? "\u6d45\u8272\u6a21\u5f0f" : "\u6df1\u8272\u6a21\u5f0f";
+	public bool IsInspectorOpen
+	{
+		get
+		{
+			return _isInspectorOpen;
+		}
+		set
+		{
+			if (SetProperty(ref _isInspectorOpen, value, "IsInspectorOpen"))
+			{
+				OnPropertyChanged("ShowInspector");
+				OnPropertyChanged("InspectorToggleText");
+			}
+		}
+	}
+
+	public bool ShowInspector => IsInspectorOpen && SelectedApp != null;
+
+	public string InspectorToggleText => ShowInspector ? "收起详情" : "详情面板";
+
+	public string ThemeToggleText => IsDarkMode ? "浅色模式" : "深色模式";
 
 	public event Action<AppItemViewModel>? EditRequested;
 
@@ -227,6 +377,8 @@ public sealed class OverviewViewModel : ViewModelBase
 		_iconService = AppServices.IconService;
 		_settings = AppServices.Config.Settings;
 		_isDarkMode = _settings.IsDarkMode;
+		_isCompactMode = _settings.IsCompactList;
+		_isGridView = _settings.IsGridView;
 		SortOptions.Add(SortManualOption);
 		SortOptions.Add(SortByNameOption);
 		SortOptions.Add(SortByRunningOption);
@@ -240,7 +392,54 @@ public sealed class OverviewViewModel : ViewModelBase
 		ClearSelectionCommand = new RelayCommand(delegate
 		{
 			_selectionDismissed = true;
+			IsInspectorOpen = false;
 			SelectedApp = null;
+		});
+		ClearSearchCommand = new RelayCommand(delegate
+		{
+			SearchQuery = string.Empty;
+		});
+		ClearFiltersCommand = new RelayCommand(delegate
+		{
+			SearchQuery = string.Empty;
+			SelectedGroup = AllGroupsOption;
+			IsRunningFilterActive = false;
+		});
+		ToggleRunningFilterCommand = new RelayCommand(delegate
+		{
+			IsRunningFilterActive = !IsRunningFilterActive;
+		});
+		ShowAllAppsCommand = new RelayCommand(delegate
+		{
+			IsRunningFilterActive = false;
+			SelectedGroup = AllGroupsOption;
+		});
+		ToggleSortDirectionCommand = new RelayCommand(delegate
+		{
+			SelectedSortDirection = IsSortDescending ? SortAscendingOption : SortDescendingOption;
+		});
+		ToggleInspectorCommand = new RelayCommand(delegate
+		{
+			if (!IsInspectorOpen && SelectedApp == null)
+			{
+				SelectedApp = _displayFilteredApps.FirstOrDefault();
+			}
+			if (SelectedApp != null)
+			{
+				IsInspectorOpen = !IsInspectorOpen;
+			}
+		});
+		CloseInspectorCommand = new RelayCommand(delegate
+		{
+			IsInspectorOpen = false;
+		});
+		ToggleCompactModeCommand = new RelayCommand(delegate
+		{
+			IsCompactMode = !IsCompactMode;
+		});
+		ToggleViewModeCommand = new RelayCommand(delegate
+		{
+			IsGridView = !IsGridView;
 		});
 		RefreshCommand = new AsyncRelayCommand(async delegate
 		{
@@ -251,6 +450,13 @@ public sealed class OverviewViewModel : ViewModelBase
 		Apps.CollectionChanged += OnAppsCollectionChanged;
 		RefreshGroupOptions();
 		LoadApps();
+	}
+
+	public void SyncPreferencesFromSettings()
+	{
+		IsDarkMode = _settings.IsDarkMode;
+		IsCompactMode = _settings.IsCompactList;
+		IsGridView = _settings.IsGridView;
 	}
 
 	public void LoadApps()
@@ -272,25 +478,102 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	public void AddApp(ApplicationItem item)
 	{
+		AddApps(new[] { item });
+	}
+
+	public void AddApps(IEnumerable<ApplicationItem> items)
+	{
+		List<AppItemViewModel> addedApps = items.Select(CreateViewModel).ToList();
+		if (addedApps.Count == 0)
+		{
+			return;
+		}
 		using (DeferRefresh())
 		{
-			AppItemViewModel vm = CreateViewModel(item);
-			Apps.Add(vm);
+			foreach (AppItemViewModel app in addedApps)
+			{
+				Apps.Add(app);
+			}
 		}
+		SelectedApp = addedApps.LastOrDefault();
+	}
+
+	public void RemoveApp(Guid id)
+	{
+		if (_appLookup.TryGetValue(id, out AppItemViewModel? app))
+		{
+			using (DeferRefresh())
+			{
+				app.PropertyChanged -= OnItemPropertyChanged;
+				Apps.Remove(app);
+			}
+		}
+	}
+
+	public void RestoreApp(ApplicationItem item, int index)
+	{
+		if (_appLookup.ContainsKey(item.Id))
+		{
+			return;
+		}
+		AppItemViewModel vm = CreateViewModel(item);
+		using (DeferRefresh())
+		{
+			int insertIndex = Math.Clamp(index, 0, Apps.Count);
+			Apps.Insert(insertIndex, vm);
+		}
+		SelectedApp = vm;
 	}
 
 	public void RefreshSummary()
 	{
+		foreach (AppItemViewModel app in Apps)
+		{
+			app.RefreshRelativeTime();
+		}
 		NotifySummaryChanged();
 	}
 
-	public void CommitReorder()
+	public bool TryReorderApp(AppItemViewModel app, AppItemViewModel? target, bool insertAfter)
 	{
-		if (CanReorder)
+		if (!CanReorder)
 		{
-			_catalog.ReorderApps(Apps.Select(app => app.Id).ToList());
+			return false;
+		}
+		if (target == app)
+		{
+			return true;
+		}
+		int sourceIndex = Apps.IndexOf(app);
+		if (sourceIndex < 0)
+		{
+			return target == null;
+		}
+		int targetIndex = Apps.Count - 1;
+		if (target != null)
+		{
+			targetIndex = Apps.IndexOf(target);
+			if (targetIndex < 0)
+			{
+				return false;
+			}
+			if (insertAfter)
+			{
+				targetIndex++;
+			}
+			if (targetIndex > sourceIndex)
+			{
+				targetIndex--;
+			}
+			targetIndex = Math.Clamp(targetIndex, 0, Apps.Count - 1);
+		}
+		if (sourceIndex != targetIndex)
+		{
+			Apps.Move(sourceIndex, targetIndex);
+			_catalog.ReorderApps(Apps.Select(item => item.Id).ToList());
 			RequestDisplayRefresh();
 		}
+		return true;
 	}
 
 	private void OnAppsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -315,11 +598,25 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private AppItemViewModel CreateViewModel(ApplicationItem item)
 	{
-		AppItemViewModel vm = new AppItemViewModel(item, _launchService, _processService, _iconService, OnEditRequested, OnRemoveRequested, OnTogglePinRequested);
+		AppItemViewModel vm = new AppItemViewModel(
+			item,
+			_launchService,
+			_processService,
+			_iconService,
+			OnEditRequested,
+			OnRemoveRequested,
+			OnTogglePinRequested,
+			OnInspectRequested);
 		vm.SetActiveGroupScope(GetActiveGroupScope());
 		vm.CanTogglePin = IsPinFeatureEnabled;
 		vm.PropertyChanged += OnItemPropertyChanged;
 		return vm;
+	}
+
+	private void OnInspectRequested(AppItemViewModel vm)
+	{
+		SelectedApp = vm;
+		IsInspectorOpen = true;
 	}
 
 	private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -346,7 +643,13 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private void RefreshDisplay()
 	{
-		IEnumerable<AppItemViewModel> filterBase = IsAllGroupsSelected ? Apps : Apps.Where((AppItemViewModel app) => string.Equals(NormalizeGroupName(app.GroupName), NormalizeGroupName(SelectedGroup), StringComparison.OrdinalIgnoreCase));
+		IEnumerable<AppItemViewModel> filterBase = IsAllGroupsSelected
+			? Apps
+			: Apps.Where((AppItemViewModel app) => string.Equals(NormalizeGroupName(app.GroupName), NormalizeGroupName(SelectedGroup), StringComparison.OrdinalIgnoreCase));
+		if (IsRunningFilterActive)
+		{
+			filterBase = filterBase.Where((AppItemViewModel app) => app.IsRunning);
+		}
 		IEnumerable<AppItemViewModel> searched = string.IsNullOrWhiteSpace(SearchQuery) ? filterBase : filterBase.Where(MatchesSearch);
 		List<AppItemViewModel> ordered = OrderApps(searched).ToList();
 		bool displayChanged = ordered.Count != _displayFilteredApps.Count;
@@ -356,11 +659,13 @@ public sealed class OverviewViewModel : ViewModelBase
 		}
 		if (displayChanged)
 		{
-			RebuildCollection(_displayFilteredApps, ordered);
+			UpdateDisplayCollection(ordered);
 			OnPropertyChanged("CurrentView");
-			OnPropertyChanged("IsEmpty");
-			OnPropertyChanged("VisibleCountText");
 		}
+		OnPropertyChanged("IsEmpty");
+		OnPropertyChanged("HasNoApps");
+		OnPropertyChanged("IsFilterEmpty");
+		OnPropertyChanged("VisibleCountText");
 		NotifySummaryChanged();
 		SyncSelectionAfterRefresh();
 	}
@@ -379,47 +684,94 @@ public sealed class OverviewViewModel : ViewModelBase
 
 	private IEnumerable<AppItemViewModel> OrderApps(IEnumerable<AppItemViewModel> source)
 	{
-		if (!IsManualSortSelected)
-		{
-			return OrderWithoutPinPriority(source);
-		}
-		IEnumerable<AppItemViewModel> pinned = source.Where((AppItemViewModel app) => app.IsPinned);
-		IEnumerable<AppItemViewModel> normal = source.Where((AppItemViewModel app) => !app.IsPinned);
-		IEnumerable<AppItemViewModel> orderedPinned = OrderWithoutPinPriority(pinned);
-		IEnumerable<AppItemViewModel> orderedNormal = OrderWithoutPinPriority(normal);
-		return orderedPinned.Concat(orderedNormal);
-	}
-
-	private IEnumerable<AppItemViewModel> OrderWithoutPinPriority(IEnumerable<AppItemViewModel> source)
-	{
 		if (IsManualSortSelected)
 		{
-			return source;
+			IEnumerable<AppItemViewModel> pinned = source.Where(app => app.IsPinned);
+			return pinned.Concat(source.Where(app => !app.IsPinned));
 		}
-		bool desc = string.Equals(SelectedSortDirection, SortDescendingOption, StringComparison.Ordinal);
+		bool descending = string.Equals(SelectedSortDirection, SortDescendingOption, StringComparison.Ordinal);
 		if (string.Equals(SelectedSort, SortByNameOption, StringComparison.Ordinal))
 		{
-			return desc ? source.OrderByDescending((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase).ThenByDescending((AppItemViewModel app) => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase) : source.OrderBy((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy((AppItemViewModel app) => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase);
+			if (descending)
+			{
+				return source.OrderByDescending(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
+					.ThenByDescending(app => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase);
+			}
+			return source.OrderBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
+				.ThenBy(app => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase);
 		}
 		if (string.Equals(SelectedSort, SortByRunningOption, StringComparison.Ordinal))
 		{
-			bool runningFirst = !desc;
-			return runningFirst ? source.OrderByDescending((AppItemViewModel app) => app.IsRunning).ThenBy((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase) : source.OrderBy((AppItemViewModel app) => app.IsRunning).ThenBy((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase);
+			if (descending)
+			{
+				return source.OrderBy(app => app.IsRunning)
+					.ThenBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase);
+			}
+			return source.OrderByDescending(app => app.IsRunning)
+				.ThenBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase);
 		}
 		if (string.Equals(SelectedSort, SortByGroupOption, StringComparison.Ordinal))
 		{
-			return desc ? source.OrderByDescending((AppItemViewModel app) => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase).ThenByDescending((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase) : source.OrderBy((AppItemViewModel app) => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase).ThenBy((AppItemViewModel app) => app.DisplayName, StringComparer.OrdinalIgnoreCase);
+			if (descending)
+			{
+				return source.OrderByDescending(app => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase)
+					.ThenByDescending(app => app.DisplayName, StringComparer.OrdinalIgnoreCase);
+			}
+			return source.OrderBy(app => NormalizeGroupName(app.GroupName), StringComparer.OrdinalIgnoreCase)
+				.ThenBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase);
 		}
 		return source;
 	}
 
-	private static void RebuildCollection(ObservableCollection<AppItemViewModel> target, IEnumerable<AppItemViewModel> source)
+	private void UpdateDisplayCollection(IReadOnlyList<AppItemViewModel> ordered)
 	{
-		target.Clear();
-		foreach (AppItemViewModel item in source)
+		Dictionary<AppItemViewModel, int> existingPositions = new Dictionary<AppItemViewModel, int>();
+		for (int i = 0; i < _displayFilteredApps.Count; i++)
 		{
-			target.Add(item);
+			existingPositions.Add(_displayFilteredApps[i], i);
 		}
+		if (HasDisplayOrderChanged(ordered, existingPositions))
+		{
+			_displayFilteredApps.Clear();
+			foreach (AppItemViewModel app in ordered)
+			{
+				_displayFilteredApps.Add(app);
+			}
+			return;
+		}
+		HashSet<AppItemViewModel> retainedApps = new HashSet<AppItemViewModel>(ordered);
+		for (int i = _displayFilteredApps.Count - 1; i >= 0; i--)
+		{
+			if (!retainedApps.Contains(_displayFilteredApps[i]))
+			{
+				_displayFilteredApps.RemoveAt(i);
+			}
+		}
+		for (int i = 0; i < ordered.Count; i++)
+		{
+			if (!existingPositions.ContainsKey(ordered[i]))
+			{
+				_displayFilteredApps.Insert(i, ordered[i]);
+			}
+		}
+	}
+
+	private static bool HasDisplayOrderChanged(IReadOnlyList<AppItemViewModel> ordered, IReadOnlyDictionary<AppItemViewModel, int> existingPositions)
+	{
+		int previousPosition = -1;
+		foreach (AppItemViewModel app in ordered)
+		{
+			if (!existingPositions.TryGetValue(app, out int position))
+			{
+				continue;
+			}
+			if (position < previousPosition)
+			{
+				return true;
+			}
+			previousPosition = position;
+		}
+		return false;
 	}
 
 	private void OnProcessStatusesChanged(object? sender, ProcessStatusesChangedEventArgs e)
@@ -514,7 +866,7 @@ public sealed class OverviewViewModel : ViewModelBase
 		string scope = GetActiveGroupScope();
 		bool isPinned = !vm.IsPinned;
 		_catalog.SetPinned(vm.Id, scope, isPinned);
-		vm.SetPinnedForActiveGroup(isPinned);
+		vm.IsPinned = isPinned;
 	}
 
 	private void OnEditRequested(AppItemViewModel vm)
