@@ -11,9 +11,9 @@ public static class ThemeService
 {
 	private const int DwmwaUseImmersiveDarkMode = 20;
 
-	private static readonly Uri LightThemeUri = new Uri("pack://application:,,,/themes/light.xaml", UriKind.Absolute);
+	private static readonly Uri LightThemeUri = new Uri("pack://application:,,,/Themes/Light.xaml", UriKind.Absolute);
 
-	private static readonly Uri DarkThemeUri = new Uri("pack://application:,,,/themes/dark.xaml", UriKind.Absolute);
+	private static readonly Uri DarkThemeUri = new Uri("pack://application:,,,/Themes/Dark.xaml", UriKind.Absolute);
 
 	public static void ApplyTheme(bool isDark)
 	{

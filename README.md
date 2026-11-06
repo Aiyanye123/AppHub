@@ -64,15 +64,32 @@ dotnet run --project src/AppHub/AppHub.csproj -- --autostart=true --log-path="C:
 .
 |-- AppHub.sln
 |-- README.md
+|-- docs/
+|   `-- local/                      # 本地方案、改动说明与项目文档（不提交）
 |-- src/
-|   `-- AppHub/
+|   `-- AppHub/                     # WPF 应用项目
 |       |-- AppHub.csproj
-|       |-- AppHub/                 # 业务代码（Models/Services/ViewModels 等）
-|       |-- views/ controls/        # XAML 视图与控件
-|       `-- app.xaml mainwindow.xaml
+|       |-- App.xaml / App.xaml.cs
+|       |-- MainWindow.xaml / MainWindow.xaml.cs
+|       |-- Assets/Icons/           # 应用图标
+|       |-- Controls/               # 自定义控件及其 XAML
+|       |-- Helpers/                # 平台辅助代码
+|       |-- Infrastructure/         # 日志、主题、托盘与系统集成
+|       |-- Models/                 # 配置、应用及状态模型
+|       |-- Services/               # 目录、启动、进程与存储服务
+|       |-- Themes/                 # 主题令牌、配色与控件样式
+|       |-- ThirdParty/             # 内置依赖源码
+|       |   `-- CommunityToolkit/
+|       |-- ViewModels/             # 视图模型与命令
+|       `-- Views/                  # 总览、设置及对应后台代码
+|           `-- Dialogs/            # 应用配置与启动参数对话框
+`-- tests/
+    `-- AppHub.Tests/               # 本地测试项目（不提交）
 ```
+
+XAML 与后台代码使用同名的 `*.xaml` / `*.xaml.cs`，放在同一目录。命名空间按现有职责划分，第三方源码保留原命名空间。
 
 ## 说明
 
 - 当前仅支持 Windows 桌面环境。
-- 功能设计、模块职责和配置格式见本地 [项目文档](项目文档.md)。
+- 功能设计、模块职责和配置格式见本地 [项目文档](docs/local/项目文档.md)。

@@ -13,10 +13,10 @@
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\Icons\App.ico</ApplicationIcon>
     <RootNamespace>AppHub</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Resource Include="icon\apphub.ico" />
+    <Resource Include="Assets\Icons\AppHub.ico" />
   </ItemGroup>
 </Project>

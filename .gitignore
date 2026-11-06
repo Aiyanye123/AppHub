@@ -26,10 +26,6 @@ coverage/
 *.baml
 
 # Local docs not submitted
-最近变更日志.md
-项目文档.md
-/tray_refactor_plan.md
-/ui_ux_refactor_plan.md
-/ui_ux_changes.md
+/docs/local/
 /tests
 /AGENTS.md
